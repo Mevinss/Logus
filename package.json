@@ -1,0 +1,31 @@
+{
+  "name": "logus",
+  "version": "1.0.0",
+  "description": "Русскоязычная платформа для онлайн-занятий",
+  "scripts": {
+    "test": "playwright test --config tests/playwright.config.ts",
+    "build": "next build",
+    "start": "node --env-file-if-exists=.env.local scripts/start.mjs",
+    "dev": "node --env-file-if-exists=.env.local scripts/start.mjs --dev",
+    "db:setup": "node --env-file-if-exists=.env.local scripts/setup.mjs",
+    "test:api": "node scripts/test-api.mjs",
+    "demo": "node --env-file-if-exists=.env.local scripts/example.mjs"
+  },
+  "dependencies": {
+    "next": "^16.4.6",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

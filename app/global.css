@@ -1,0 +1,256 @@
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  color: #20372d;
+  background: #f8f7f1;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button,
+a,
+input,
+textarea,
+select {
+  outline-offset: 3px;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: wait;
+}
+a {
+  color: #295a49;
+}
+.logus-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font:
+    600 34px/1 Georgia,
+    serif;
+  letter-spacing: -2px;
+  color: #1f4437;
+}
+.logus-brand img {
+  display: block;
+}
+.entry {
+  max-width: 1440px;
+  margin: auto;
+  padding: 0 clamp(24px, 5.8vw, 94px) 44px;
+}
+.entry-head {
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #cfd5c9;
+}
+.entry-head > span:last-child {
+  color: #5f6b61;
+  font-size: 14px;
+}
+.entry-grid {
+  display: grid;
+  grid-template-columns: 1.13fr 1fr;
+  align-items: center;
+  gap: clamp(44px, 7.4vw, 120px);
+  margin-top: clamp(28px, 6vh, 68px);
+}
+.entry-print {
+  background: #153f36;
+  color: #f1e7c8;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  padding-top: 40px;
+}
+.print-title {
+  font:
+    normal clamp(43px, 4.9vw, 80px)/1.02 Georgia,
+    serif;
+  letter-spacing: -0.055em;
+  padding: 0 9%;
+  position: relative;
+  z-index: 1;
+}
+.print-title em {
+  font-weight: 400;
+  color: #c6d4bb;
+}
+.atlas {
+  width: 100%;
+  display: block;
+  height: auto;
+  margin-top: -5%;
+}
+.print-foot {
+  border-top: 1px solid #658274;
+  margin: 0 9%;
+  height: 53px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #d8dfcc;
+  font-size: 13px;
+}
+.print-foot span + span {
+  font-size: 22px;
+}
+.entry-form {
+  max-width: 420px;
+  width: 100%;
+  padding: 24px 0;
+}
+.entry-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #476455;
+}
+.entry-kicker i {
+  width: 23px;
+  height: 2px;
+  background: #c47d56;
+}
+.entry-form h1 {
+  font:
+    normal clamp(41px, 4vw, 65px)/1.02 Georgia,
+    serif;
+  letter-spacing: -0.055em;
+  margin: 18px 0;
+}
+.entry-form > p {
+  color: #627066;
+  font-size: 16px;
+  line-height: 1.55;
+  max-width: 38ch;
+  margin: 0 0 29px;
+}
+.entry-form label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 16px 0;
+}
+.entry-form input {
+  display: block;
+  padding: 13px 14px;
+  border: 1px solid #aebbb0;
+  background: #fffefa;
+  border-radius: 5px;
+  width: 100%;
+  margin-top: 7px;
+  color: #213d31;
+  font-size: 16px;
+}
+.entry-password {
+  position: relative;
+  display: block;
+}
+.entry-password input {
+  padding-right: 85px;
+}
+.entry-password button {
+  position: absolute;
+  right: 9px;
+  top: 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  padding: 6px;
+  color: #4b6959;
+  font-size: 13px;
+}
+.entry-submit {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: #245340;
+  color: white;
+  border: 0;
+  border-radius: 5px;
+  padding: 13px 16px;
+  margin-top: 23px;
+  font-weight: 600;
+}
+.entry-submit span {
+  font-size: 21px;
+}
+.entry-note {
+  border-top: 1px solid #d5d9ce;
+  margin-top: 29px;
+  padding-top: 18px;
+  color: #66746a;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.entry-note strong {
+  color: #365344;
+}
+.entry-error {
+  background: #fae5dc;
+  padding: 12px;
+  border-radius: 4px;
+  color: #8c3d29;
+  font-size: 14px;
+}
+.entry-wait {
+  min-height: 70vh;
+  display: grid;
+  place-content: center;
+  gap: 16px;
+}
+@media (max-width: 760px) {
+  .entry-head {
+    height: 72px;
+  }
+  .entry-head > span:last-child {
+    font-size: 12px;
+    max-width: 150px;
+    text-align: right;
+  }
+  .entry-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+    margin-top: 22px;
+  }
+  .entry-print {
+    height: 140px;
+    padding: 20px 0;
+  }
+  .print-title {
+    font-size: 35px;
+    padding: 8px 6%;
+  }
+  .atlas {
+    position: absolute;
+    width: 56%;
+    right: 0;
+    top: 0;
+  }
+  .print-foot {
+    display: none;
+  }
+  .entry-form {
+    max-width: none;
+  }
+  .entry-form h1 {
+    font-size: 43px;
+  }
+}

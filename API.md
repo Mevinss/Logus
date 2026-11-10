@@ -1,0 +1,17 @@
+# Logus API
+
+JSON for all routes except PDF upload. Errors {error:string}, HTTP status, direct response objects. IDs are strings except page IDs. Session cookie. GET /api/me -> {id,name,role:"teacher"|"student"} or 401. POST /api/login {email,password}, POST /api/logout {}, POST /api/join {token} -> user. Invite URL /invite/TOKEN, conduct URL /student/RUN (both absolute).
+Question {id:string,type:"choice"|"open",prompt:string,options:string[],correctIndex:number|null,criterion:string,maxPoints:number,skill:string,sourceId:number,quote:string}. Page {id:number,text:string}. Answer value = zero-based number (choice) or string (open). Status = "not_started"|"in_progress"|"pending"|"graded". Scores numeric, final score null until graded.
+
+## Teacher
+
+GET /api/teacher -> {groups:Group[],lessons:Lesson[],runs:Run[],pending:Work[],repeat:Metric|null}. Group {id,name,students:[{id,name,inviteUrl}]}. Lesson {id,title,instruction,pages:Page[],pdfUrl:string|null,questions:Question[],selectedPages:number[],updatedAt:string}. Run {id,lessonId,title,groupId,groupName,kind:"lesson"|"warmup",parentId:string|null,url,assigned,started,submitted,pending,maxPoints,createdAt}. Work {runId,studentId,studentName,title,status,score:number|null,maxPoints,earned:number,comment:string}. Metric {runId,questionId,prompt,skill,answered,correct,wrongOption:string|null,wrongCount,works:Work[]}.
+POST /api/groups {name} -> Group. POST /api/groups/ID/students {name} -> Group.
+POST /api/lessons {title,instruction?,text?} -> Lesson. PATCH /api/lessons/ID {title?,instruction?,text?,selectedPages?,questions?} -> Lesson. text replaces source/splits paragraphs and clears questions. POST /api/lessons/ID/pdf multipart field file -> Lesson (+warning if extraction failed). GET /api/files/ID (pdfUrl). POST /api/lessons/ID/generate {} -> {questions:Question[],issues:string[]} (preview only; PATCH to save). POST /api/lessons/ID/publish {groupId} -> Run (uses saved draft).
+GET /api/groups/ID -> {group:Group,runs:Run[],works:Work[],metrics:Metric[],skills:[{skill,earned,maxPoints,questions:Metric[]}]}. Works includes not_started for all assigned. GET /api/works/RUN/STUDENT -> {work:Work,questions:Question[],answers:Record<qid,number|string>,points:Record<qid,number>,pages:Page[],pdfUrl:string|null}. POST /api/works/RUN/STUDENT/suggest {questionId} -> {points,evidence}. POST /api/works/RUN/STUDENT/grade {points:Record<qid,number>,comment:string} -> Work. Only open points accepted; all open required.
+POST /api/runs/RUN/warmup-preview {questionId} -> {questions:Question[],issues:string[]}. POST /api/runs/RUN/warmup {questionId,questions:Question[],studentIds?:string[],title?:string} -> Run.
+GET /api/groups/ID/students/STUDENT -> {name,works:Work[],skills:[{skill,earned,maxPoints}]}.
+
+## Student
+
+GET /api/student -> {name,items:Item[],skills:[{skill,earned,maxPoints}]}. Item = Work + {kind,parentId,createdAt,instruction}. GET /api/student/RUN -> {item:Item,pages:Page[],pdfUrl:string|null,questions:PublicQuestion[],answers:Record<qid,number|string>,points:Record<qid,number>,warmups:Item[]}. PublicQuestion includes id,type,prompt,options,maxPoints,skill,sourceId (no quote/key/criterion). Points empty during test. GET doesn't start attempt. POST /api/student/RUN/start {} -> {status}. PATCH /api/student/RUN/answers {answers:Record<qid,number|string|null>} -> {status} merges delta; null clears. POST /api/student/RUN/submit {answers?:Record<qid,number|string|null>} -> Work; idempotent. Blank answers accepted.
