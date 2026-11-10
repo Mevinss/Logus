@@ -84,7 +84,13 @@ test("Ручной урок, PDF, журнал, выборочная разми�
       url + "/api/lessons/" + quick.id + "/publish",
       { groupId: one.id },
     );
-    await o.goto(pair.students[0].inviteUrl);
+    await o.goto(url);
+    await button(o, "Я ученик").click();
+    await o.getByLabel("Ссылка-приглашение").fill(issued.url);
+    await button(o, "Войти по приглашению").click();
+    await expect(o.locator("form").getByRole("alert")).toContainText("/invite/");
+    await o.getByLabel("Ссылка-приглашение").fill(pair.students[0].inviteUrl);
+    await button(o, "Войти по приглашению").click();
     await expect(o.getByRole("heading", { name: "Мои занятия" })).toBeVisible();
     await o.goto(issued.url);
     await o.getByRole("button", { name: /Перейти к заданиям/ }).click();

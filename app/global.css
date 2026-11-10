@@ -190,16 +190,26 @@ a {
 .entry-submit span {
   font-size: 21px;
 }
-.entry-note {
-  border-top: 1px solid #d5d9ce;
-  margin-top: 29px;
-  padding-top: 18px;
-  color: #66746a;
-  font-size: 14px;
-  line-height: 1.5;
+.entry-roles {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #c5cec2;
+  border-radius: 7px;
+  background: #eef0e8;
 }
-.entry-note strong {
-  color: #365344;
+.entry-roles button {
+  flex: 1;
+  padding: 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #395544;
+  font-weight: 600;
+}
+.entry-roles button[aria-pressed="true"] {
+  color: white;
+  background: #245340;
 }
 .entry-error {
   background: #fae5dc;

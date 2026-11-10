@@ -6,9 +6,12 @@ import Teacher from "./Teacher";
 import Student from "./Student";
 
 type Actor = { id: string; name: string; role: "teacher" | "student" };
-type Props = { invite?: string; initialRun?: string };
+type Props = { invite?: string; initialRun?: string; studentEntry?: boolean };
 
-export default function Entry({ invite, initialRun }: Props) {
+export default function Entry({ invite, initialRun, studentEntry }: Props) {
+  const [role, setRole] = useState<Actor["role"]>(
+    invite || initialRun || studentEntry ? "student" : "teacher",
+  );
   const [user, setUser] = useState<Actor | null>(null);
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false);
@@ -94,6 +97,27 @@ export default function Entry({ invite, initialRun }: Props) {
       window.alert("Не удалось выйти. Проверьте соединение и повторите.");
     }
   }
+  function openInvitation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const value = String(
+      new FormData(event.currentTarget).get("invitation") || "",
+    ).trim();
+    try {
+      const url = value.startsWith("/invite/")
+        ? new URL(value, location.origin)
+        : new URL(value);
+      const match = /^\/invite\/([A-Za-z0-9_-]+)\/?$/.exec(url.pathname);
+      if (!["http:", "https:"].includes(url.protocol) || !match)
+        throw new Error();
+      setError("");
+      setBusy(true);
+      location.assign("/invite/" + match[1]);
+    } catch {
+      setError(
+        "Вставьте индивидуальную ссылку с /invite/ из приглашения учителя.",
+      );
+    }
+  }
   if (loading)
     return (
       <div className="entry-wait">
@@ -111,11 +135,7 @@ export default function Entry({ invite, initialRun }: Props) {
         onLogout={logout}
       />
     );
-  const pupil = Boolean(
-    initialRun ||
-    invite ||
-    (typeof window !== "undefined" && location.pathname === "/student"),
-  );
+  const pupil = role === "student";
   return (
     <main className="entry">
       <header className="entry-head">
@@ -143,18 +163,49 @@ export default function Entry({ invite, initialRun }: Props) {
           <h1>{pupil ? "Вход на занятие" : "С возвращением"}</h1>
           <p>
             {pupil
-              ? "Откройте индивидуальное приглашение от учителя на этом устройстве."
+              ? "Вставьте ссылку, которую учитель выдал лично вам."
               : "Войдите, чтобы подготовить урок и посмотреть работы учеников."}
           </p>
+          <div className="entry-roles" role="group" aria-label="Выбор роли">
+            {(["teacher", "student"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={role === option}
+                disabled={busy}
+                onClick={() => {
+                  setRole(option);
+                  setError("");
+                }}
+              >
+                {option === "teacher" ? "Я учитель" : "Я ученик"}
+              </button>
+            ))}
+          </div>
           {pupil ? (
-            <>
+            <form onSubmit={openInvitation}>
+              <label>
+                Ссылка-приглашение
+                <input
+                  name="invitation"
+                  inputMode="url"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="http://…/invite/…"
+                  required
+                />
+              </label>
               {error && (
                 <div role="alert" className="entry-error">
                   {error}
                 </div>
               )}
-              <a href="/">Войти как учитель</a>
-            </>
+              <button className="entry-submit" disabled={busy}>
+                {busy ? "Открываем кабинет…" : "Войти по приглашению"}{" "}
+                <span aria-hidden="true">→</span>
+              </button>
+            </form>
           ) : (
             <form onSubmit={login}>
               <label>
@@ -195,12 +246,6 @@ export default function Entry({ invite, initialRun }: Props) {
                 <span aria-hidden="true">→</span>
               </button>
             </form>
-          )}
-          {!pupil && (
-            <aside className="entry-note">
-              <strong>Вы ученик?</strong> Откройте ссылку-приглашение, которую
-              прислал учитель.
-            </aside>
           )}
         </section>
       </div>
