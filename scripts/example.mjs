@@ -8,7 +8,7 @@ try {
       (process.env.TEACHER_EMAIL || "teacher@logus.local").trim().toLowerCase(),
     );
   if (!teacher) throw Error("Сначала выполните npm run db:setup.");
-  const id = "example-map-" + teacher.id;
+  const id = "example-map-practice-" + teacher.id;
   if (!db.prepare("SELECT id FROM lessons WHERE id=?").get(id)) {
     const pages = [
       {
@@ -41,6 +41,28 @@ try {
       {
         ...base,
         id: randomUUID(),
+        type: "choice",
+        prompt: "Какой длины будет линия маршрута в 5 км на карте масштаба 1 : 100 000?",
+        options: ["5 мм", "50 см", "5 см"],
+        correctIndex: 2,
+        criterion: "",
+        maxPoints: 1,
+      },
+      {
+        ...base,
+        id: randomUUID(),
+        type: "choice",
+        sourceId: 2,
+        quote: "при масштабе 1 : 50 000 отрезок длиной 2 сантиметра соответствует 100 000 сантиметрам",
+        prompt: "На двух картах маршрут занимает по 2 см. На первой масштаб 1 : 100 000, на второй — 1 : 50 000. На сколько километров первый маршрут длиннее?",
+        options: ["На 1 км", "На 2 км", "На 0,5 км"],
+        correctIndex: 0,
+        criterion: "",
+        maxPoints: 1,
+      },
+      {
+        ...base,
+        id: randomUUID(),
         type: "open",
         sourceId: 2,
         quote:
@@ -56,7 +78,7 @@ try {
     ];
     const draft = {
       id,
-      title: "Пример · Как читать масштаб карты",
+      title: "Практикум · Масштаб карты",
       instruction:
         "Прочитайте два абзаца и решите задачи. Это демонстрационный урок с заранее подготовленными вопросами.",
       pages,
