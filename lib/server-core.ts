@@ -5,7 +5,7 @@ import {
   scryptSync,
   timingSafeEqual,
 } from "node:crypto";
-import { networkInterfaces } from "node:os";
+import { lanAddress } from "./lan-address.mjs";
 import { cloudStorage } from "./server-cloud.mjs";
 import { connect } from "./server-schema.mjs";
 
@@ -173,21 +173,8 @@ export function baseUrl(req: Request) {
   if (publicUrl) return publicUrl.replace(/\/+$/, "");
   const url = new URL(req.url);
   if (["localhost", "127.0.0.1", "0.0.0.0", "[::1]"].includes(url.hostname)) {
-    const cards = Object.entries(networkInterfaces())
-      .flatMap(([name, addresses]) =>
-        (addresses || []).map((a) => ({ ...a, name })),
-      )
-      .filter(
-        (a) =>
-          a.family === "IPv4" &&
-          !a.internal &&
-          !a.address.startsWith("169.254."),
-      );
-    const best =
-      cards.find((a) => /wi-?fi|wireless|беспровод/i.test(a.name)) ||
-      cards.find((a) => !/virtual|wsl|vpn|hyper|docker/i.test(a.name)) ||
-      cards[0];
-    if (best) url.hostname = best.address;
+    const address = lanAddress();
+    if (address) url.hostname = address;
   }
   return url.origin;
 }
