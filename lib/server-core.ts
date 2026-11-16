@@ -165,8 +165,8 @@ export function signIn(req: Request, role: string, user: Row) {
   );
 }
 export function baseUrl(req: Request) {
-  if (process.env.PUBLIC_BASE_URL)
-    return process.env.PUBLIC_BASE_URL.replace(/\/+$/, "");
+  const publicUrl = process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL;
+  if (publicUrl) return publicUrl.replace(/\/+$/, "");
   const url = new URL(req.url);
   if (["localhost", "127.0.0.1", "0.0.0.0", "[::1]"].includes(url.hostname)) {
     const cards = Object.entries(networkInterfaces())

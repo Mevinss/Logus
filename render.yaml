@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: logus
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run db:setup && npm run demo && npm start
+    healthCheckPath: /
+    disk:
+      name: logus-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: LOGUS_DATA_DIR
+        value: /var/data/logus
+      - key: NODE_VERSION
+        value: 24.14.0
+      - key: TEACHER_PASSWORD
+        sync: false
