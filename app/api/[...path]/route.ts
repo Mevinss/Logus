@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import {
   extractPdf,
   generateQuestions,
@@ -95,6 +96,18 @@ async function dispatch(req: Request, parts: string[]) {
   if (resource === "login" && is("POST", 1)) {
     const b = await input(req);
     return login(req, b.email, b.password);
+  }
+  if (resource === "practice" && is("POST", 1)) {
+    const token = (await input(req)).token;
+    if(typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) fail(400,"Неверное приглашение.");
+    if(!one("SELECT id FROM runs WHERE id=?", "public-map-v1")) fail(404,"Практикум не опубликован.");
+    const studentId = createHash("sha256").update("public-map-v1:"+token).digest("hex");
+    const name = "Участник "+studentId.slice(0,6);
+    run("INSERT OR IGNORE INTO students VALUES(?,?,?,?)",studentId,"public-map-group",name,secret());
+    run("INSERT OR IGNORE INTO assignments(run,student) VALUES(?,?)","public-map-v1",studentId);
+    const fresh = one("SELECT status FROM assignments WHERE run=? AND student=?","public-map-v1",studentId)?.status === "not_started";
+    const signed=signIn(req,"student",{id:studentId,name});
+    return Response.json({id:studentId,name,fresh},{headers:signed.headers});
   }
   if (resource === "join" && is("POST", 1)) {
     const b = await input(req),

@@ -94,6 +94,12 @@ try {
     );
   }
   console.log("Демонстрационный черновик доступен в разделе «Мои уроки».");
+  if (process.env.LOGUS_PUBLIC_PRACTICE === "1") {
+    const lesson = JSON.parse(db.prepare("SELECT body FROM lessons WHERE id=?").get(id).body);
+    lesson.questions.forEach((q,i)=>{q.id="map-v1-"+(i+1)});
+    db.prepare("INSERT OR IGNORE INTO groups VALUES(?,?,?)").run("public-map-group",teacher.id,"Открытый практикум");
+    db.prepare("INSERT OR IGNORE INTO runs VALUES(?,?,?,?,?,?,?)").run("public-map-v1",id,"public-map-group","lesson",null,new Date().toISOString(),JSON.stringify(lesson));
+  }
 } finally {
   db.close();
 }

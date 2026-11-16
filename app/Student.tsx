@@ -308,6 +308,9 @@ export default function Student({
   }
   function answer(q: string, value: number | string) {
     if (!run) return;
+    if (run === "public-map-v1") {
+      try {localStorage.setItem("logus:practice:copy:"+studentId,JSON.stringify({answers:{...answers,[q]:value},submitted:false}));} catch {setLocalWarning(true);}
+    }
     setAnswers((old) => ({ ...old, [q]: value }));
     queue.current[run] = { ...queue.current[run], [q]: value };
     persist();
@@ -327,6 +330,9 @@ export default function Student({
       await api("/" + run + "/submit", "POST", {
         answers: { ...queue.current[run] },
       });
+      if(run === "public-map-v1") {
+        try {localStorage.setItem("logus:practice:copy:"+studentId,JSON.stringify({answers,submitted:true}));} catch {setLocalWarning(true);}
+      }
       delete queue.current[run];
       persist();
       try {
