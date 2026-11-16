@@ -42,6 +42,7 @@ import {
   studentHome,
   studentDetails,
   studentAction,
+  startMapReview,
   teacherDetails,
   grade,
   issueRun,
@@ -184,6 +185,7 @@ async function dispatch(req: Request, parts: string[]) {
     const u = session(req, "student");
     const expectedStudent = req.headers.get("X-Logus-Student");
     if (expectedStudent !== null && expectedStudent !== u.id) fail(409, "Сменился аккаунт ученика. Обновите страницу.");
+    if (k === "public-map-v1" && action === "review" && is("POST", 3)) return startMapReview(u.id);
     if (is("GET", 1)) return studentHome(u.id, u.name);
     if (is("GET", 2)) return studentDetails(u.id, k);
     if (

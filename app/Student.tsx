@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Brand from "./Brand";
+import ScaleLab from "./ScaleLab";
 import {
   practiceRun,
   savePracticeAnswers,
@@ -46,6 +47,7 @@ type Lesson = {
   answers: Answers;
   points: Record<string, number>;
   warmups: Item[];
+  review: { runId: string | null; rows: { label: string; before: number; after: number | null }[] } | null;
 };
 function lessonSkills(lesson: Lesson) {
   const skills = new Map<
@@ -366,6 +368,17 @@ export default function Student({
       if (run) sessionStorage.setItem(posKey(run), String(i));
     } catch {}
   }
+  async function openReview() {
+    if (!lesson?.review || busy) return;
+    if (lesson.review.runId) return navigate(lesson.review.runId);
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api<{runId: string}>("/" + practiceRun + "/review", "POST", {});
+      navigate(result.runId);
+    } catch (e) { setError(message(e)); }
+    finally { setBusy(false); }
+  }
   async function start() {
     if (!run || !lesson || busy) return;
     setBusy(true);
@@ -591,12 +604,15 @@ export default function Student({
                   id={"st-source-" + p.id}
                 >
                   <b className="st-fine">
-                    {lesson.pdfUrl ? "Страница" : "Абзац"} {p.id}
+                    {lesson.pdfUrl ? "Страница " + p.id : run === practiceRun || lesson.item.parentId === practiceRun
+                      ? (p.id === 1 ? "Как читать масштаб" : p.id === 2 ? "Перевод в километры" : "Фрагмент " + p.id)
+                      : "Фрагмент " + p.id}
                   </b>
                   <p>{p.text}</p>
                 </article>
               ))}
             </section>
+            {(run === practiceRun || lesson.review || lesson.item.parentId === practiceRun) && <ScaleLab />}
             <div className="st-row">
               {completed(lesson.item.status) ? (
                 <button className="st-btn" onClick={() => setView("result")}>
@@ -802,6 +818,25 @@ export default function Student({
                 </div>
               )}
             </section>
+            {lesson.review && (
+              <section className="st-card st-review">
+                <h2>{lesson.review.rows.length ? "Работа над ошибками" : "Все три тестовых задания решены верно"}</h2>
+                {lesson.review.rows.length > 0 && <>
+                  <p>{lesson.review.rows[0].after === null
+                    ? "У каждого навыка ниже есть новая задача. Сравните результат после разминки."
+                    : "Баллы за одну задачу на тот же навык в двух попытках."}</p>
+                  <table><thead><tr><th>Навык</th><th>До</th><th>После</th></tr></thead>
+                    <tbody>{lesson.review.rows.map(row => <tr key={row.label}>
+                      <th scope="row">{row.label}</th><td>{row.before} / 1</td>
+                      <td>{row.after === null ? "Ещё нет" : row.after + " / 1"}</td>
+                    </tr>)}</tbody></table>
+                  {run === practiceRun && lesson.review.rows[0].after === null &&
+                    <button className="st-btn" disabled={busy} onClick={openReview}>
+                      {busy ? "Открываем…" : "Перейти к разминке"} →
+                    </button>}
+                </>}
+              </section>
+            )}
             {lessonSkills(lesson).length > 0 && (
               <section className="st-card">
                 <h2>Навыки в этой работе</h2>
@@ -863,7 +898,7 @@ export default function Student({
                           setView("lesson");
                         }}
                       >
-                        К материалу · {lesson.pdfUrl ? "страница" : "абзац"}{" "}
+                        К материалу · {lesson.pdfUrl ? "страница" : "фрагмент"}{" "}
                         {v.sourceId} →
                       </button>
                     </div>

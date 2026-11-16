@@ -76,7 +76,7 @@ export function Source({
   close: () => void;
 }) {
   return (
-    <Overlay title={(pdf ? "Страница " : "Абзац ") + p.id} close={close}>
+    <Overlay title={(pdf ? "Страница " : "Фрагмент ") + p.id} close={close}>
       {pdf && (
         <>
           <a
@@ -250,7 +250,7 @@ export function QuestionEdit({
             <Icon n="book" /> Источник вопроса
           </div>
           {label(
-            pdf ? "Страница PDF" : "Абзац материала",
+            pdf ? "Страница PDF" : "Фрагмент материала",
             <select
               value={q.sourceId}
               onChange={(e) =>
@@ -259,7 +259,7 @@ export function QuestionEdit({
             >
               {pages.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {pdf ? "Страница" : "Абзац"} {p.id}
+                  {pdf ? "Страница" : "Фрагмент"} {p.id}
                 </option>
               ))}
             </select>,
@@ -497,7 +497,7 @@ export default function Editor({
           )}
           {pages.length > 0 && (
             <div>
-              <h3>{lesson.pdfUrl ? "Страницы PDF" : "Абзацы материала"}</h3>
+              <h3>{lesson.pdfUrl ? "Страницы PDF" : "Фрагменты материала"}</h3>
               <div className="t-pages">
                 {pages.map((p) => (
                   <div key={p.id}>

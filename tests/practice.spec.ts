@@ -45,6 +45,21 @@ test("Открытый практикум восстанавливает лич�
     await expect(heading("Навыки в этой работе").locator("..")).toContainText(
       "2 из 3",
     );
+    const comparison = a.locator(".st-review");
+    await expect(comparison).toContainText("Сравнение маршрутов");
+    await expect(comparison).toContainText("Ещё нет");
+    await comparison.getByRole("button", {name: /Перейти к разминке/}).click();
+    await start.click();
+    await expect(a.getByText("Вопрос 1 из 1")).toBeVisible();
+    await a.getByRole("radio", {name: "На 3 км", exact: true}).check();
+    await a.getByRole("button", {name:"Сдать работу"}).click();
+    await expect(comparison.getByRole("row").last()).toHaveText("Сравнение маршрутов0 / 11 / 1");
+    const reviewUrl = a.url();
+    await a.reload();
+    await expect(comparison).toContainText("1 / 1");
+    await a.goto(url);
+    await expect(comparison).toContainText("1 / 1");
+    await expect(a.locator(".st-result")).toContainText("2из 3");
     await b.goto(url);
     await expect(
       b.getByRole("button", { name: /Перейти к заданиям/ }),
@@ -52,6 +67,7 @@ test("Открытый практикум восстанавливает лич�
     const other = await (await bob.request.get(api)).json();
     expect(other.item.studentId).not.toBe(id);
     expect(other.answers).toEqual({});
+    expect((await bob.request.get(reviewUrl.replace("/student/", "/api/student/"))).status()).toBe(404);
     expect(other.item.status).toBe("not_started");
 
     await a
@@ -59,8 +75,9 @@ test("Открытый практикум восстанавливает лич�
       .last()
       .click();
     await a.getByRole("tab", { name: "История результатов" }).click();
-    await expect(a.getByRole("article")).toContainText("2 из 3");
-    await a.getByRole("button", { name: /Открыть результат/ }).click();
+    const mainWork = a.getByRole("article").filter({hasText: "Практикум · Масштаб карты"});
+    await expect(mainWork).toContainText("2 из 3");
+    await mainWork.getByRole("button", { name: /Открыть результат/ }).click();
     await expect(a).toHaveURL(url);
     await fixture.resetServiceStorage();
     await alice.clearCookies();

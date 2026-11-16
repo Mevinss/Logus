@@ -1,3 +1,4 @@
+import { mapRun, reviewPrefix, reviewQuestions, reviewRunId } from "./map-review";
 import {
   all,
   one,
@@ -153,6 +154,37 @@ export function teacherDetails(
   );
   return details(assignment(runId, student));
 }
+function reviewState(student: string, runId: string, row: Row) {
+  if (runId !== mapRun && !(runId.startsWith(reviewPrefix) && row.parent === mapRun)) return null;
+  const original = runId === mapRun ? row : assignment(mapRun, student);
+  if (!done(original.status)) return null;
+  const before = JSON.parse(original.points);
+  const questions = reviewQuestions(read(original).questions, before);
+  const id = reviewRunId(questions);
+  const attempt = questions.length ? one("SELECT status,points FROM assignments WHERE run=? AND student=?", id, student) : null;
+  const after = attempt && done(attempt.status) ? JSON.parse(attempt.points) : {};
+  return { runId: attempt ? id : null, rows: questions.map(q => ({
+    label: q.skill, before: before[q.id.slice("review-".length)], after: after[q.id] ?? null,
+  })) };
+}
+
+export function startMapReview(student: string) {
+  return transaction(() => {
+    const original = assignment(mapRun, student);
+    if (!done(original.status)) fail(409, "Сначала сдайте основную работу.");
+    const lesson = read(original);
+    const questions = reviewQuestions(lesson.questions, JSON.parse(original.points));
+    if (!questions.length) fail(409, "Все три тестовых задания решены верно.");
+    const id = reviewRunId(questions);
+    const body = { ...lesson, title: "Работа над ошибками · Масштаб карты", questions,
+      instruction: "Повторите правило и решите новую задачу на каждый навык, в котором возникла ошибка." };
+    run("INSERT OR IGNORE INTO runs(id,lesson,grp,kind,parent,created,body) SELECT ?,lesson,grp,'warmup',id,?,? FROM runs WHERE id=?",
+      id, new Date().toISOString(), JSON.stringify(body), mapRun);
+    run("INSERT OR IGNORE INTO assignments(run,student) VALUES(?,?)", id, student);
+    return { runId: id };
+  });
+}
+
 export function studentDetails(student: string, runId: string) {
   const r = assignment(runId, student),
     d = details(r);
@@ -167,6 +199,7 @@ export function studentDetails(student: string, runId: string) {
   }));
   return {
     item: item(r),
+    review: reviewState(student, runId, r),
     pages: d.pages,
     pdfUrl: d.pdfUrl,
     questions,

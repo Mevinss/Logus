@@ -259,6 +259,35 @@ try {
     { cwd: root, env: process.env, encoding: "utf8" },
   );
   assert.equal(record.trim(), "2");
+  execFileSync(process.execPath, ["scripts/example.mjs"], {
+    cwd: root, env: { ...process.env, LOGUS_PUBLIC_PRACTICE: "1" }, stdio: "pipe",
+  });
+  const practice = "student/public-map-v1";
+  for (const allCorrect of [true, false]) {
+    const token = (randomUUID() + randomUUID()).replaceAll("-", "");
+    const cookie = await route("", "POST", "practice", { token });
+    const call = (...args) => route(cookie, ...args);
+    await call("POST", practice + "/review", {}, 409);
+    await call("POST", practice + "/submit", { answers: {
+      "map-v1-1": allCorrect ? 1 : 0, "map-v1-2": allCorrect ? 2 : 0,
+      "map-v1-3": allCorrect ? 0 : 1, "map-v1-4": "2 км",
+    } });
+    if (allCorrect) {
+      assert.deepEqual((await call("GET", practice)).review.rows, []);
+      await call("POST", practice + "/review", {}, 409);
+    } else {
+      const { runId } = await call("POST", practice + "/review", {});
+      assert.equal((await call("POST", practice + "/review", {})).runId, runId);
+      const lesson = await call("GET", "student/" + runId);
+      assert.equal(lesson.questions.length, 3);
+      await call("POST", "student/" + runId + "/submit", { answers: {
+        "review-map-v1-1": 2, "review-map-v1-2": 0, "review-map-v1-3": 0,
+      } });
+      const result = await call("GET", practice);
+      assert.deepEqual(result.review.rows.map(r => [r.before, r.after]), [[0,1],[0,1],[0,0]]);
+      assert.equal(result.item.earned, 0);
+    }
+  }
   console.log(
     "API: PDF, роли, версии, проверка цитат, автосохранение, идемпотентная сдача, оценки, журнал, аналитика, адресная разминка, повторное проведение и SQLite — успешно.",
   );
