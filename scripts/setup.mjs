@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID, scryptSync } from "node:crypto";
-import { writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { connect } from "../lib/server-schema.mjs";
 const { db, dir } = connect();
@@ -23,12 +23,18 @@ try {
       salt,
     );
     const info = "Вход учителя\n" + email + "\n" + password + "\n";
+    const loginFile = join(
+      dir,
+      existsSync(join(dir, "teacher-login.txt"))
+        ? "teacher-login-" + randomUUID() + ".txt"
+        : "teacher-login.txt",
+    );
     if (!process.env.TEACHER_PASSWORD)
-      writeFileSync(join(dir, "teacher-login.txt"), info, { mode: 0o600 });
+      writeFileSync(loginFile, info, { mode: 0o600, flag: "wx" });
     console.log(
       process.env.TEACHER_PASSWORD
         ? "Учитель создан: " + email
-        : info + "Пароль сохранён в " + join(dir, "teacher-login.txt"),
+        : "Учитель создан: " + email + ". Пароль сохранён в " + loginFile,
     );
   }
 } finally {

@@ -46,6 +46,7 @@ export default function Teacher({
     [nav, setSection] = useState("Сегодня"),
     [group, setGroup] = useState(""),
     [edit, setEditor] = useState<AnyRow | null>(null),
+    [liveRun, setLiveRun] = useState(""),
     [initMetric, setInitialMetric] = useState<AnyRow | null>(null),
     [work, setWork] = useState<AnyRow | null>(null),
     [modal, setModal] = useState(""),
@@ -82,6 +83,7 @@ export default function Teacher({
     setGroup("");
     setEditor(null);
     setInitialMetric(null);
+    setLiveRun("");
     setError("");
     setQuery("");
     setMenuOpen(false);
@@ -103,10 +105,11 @@ export default function Teacher({
       setBusy(false);
     }
   };
-  const visitGroup = (id: string, m?: AnyRow) => {
+  const visitGroup = (id: string, m?: AnyRow, run = "") => {
     navigate("Группы");
     setGroup(id);
     setInitialMetric(m || null);
+    setLiveRun(run);
   };
   const published = (r: AnyRow) => {
     navigate("Мои уроки");
@@ -205,10 +208,12 @@ export default function Teacher({
           />
         ) : group ? (
           <GroupView
+            lessons={lessons}
             key={group}
             id={group}
             back={() => navigate("Группы")}
             refresh={load}
+            liveRun={liveRun}
             initialMetric={initMetric}
           />
         ) : (
@@ -266,7 +271,7 @@ export default function Teacher({
                         <button
                           className="t-run"
                           key={r.id}
-                          onClick={() => visitGroup(r.groupId)}
+                          onClick={() => visitGroup(r.groupId, undefined, r.id)}
                         >
                           <span className={"t-cover c" + (i % 3)}>
                             <Icon
@@ -443,6 +448,7 @@ export default function Teacher({
                             <Icon n="group" />
                           </span>
                           <h2>{g.name}</h2>
+                          {g.subject && <small>{g.subject}</small>}
                           <span>
                             {g.students.length}{" "}
                             {countWord(g.students.length, [

@@ -180,7 +180,12 @@ export function baseUrl(req: Request) {
 }
 export function ownedGroup(teacher: string, group: string) {
   return found(
-    one("SELECT * FROM groups WHERE teacher=? AND id=?", teacher, group),
+    one(
+      "SELECT g.*,s.subject FROM groups g LEFT JOIN subject_teachers s ON s.grp=g.id AND s.teacher=? WHERE g.id=? AND (g.teacher=? OR s.teacher IS NOT NULL)",
+      teacher,
+      group,
+      teacher,
+    ),
   );
 }
 export function groupDto(group: Row, base: string) {
@@ -190,9 +195,15 @@ export function groupDto(group: Row, base: string) {
   ).map((s) => ({
     id: s.id,
     name: s.name,
-    inviteUrl: base + "/invite/" + s.invite,
+    inviteUrl: group.subject ? undefined : base + "/invite/" + s.invite,
   }));
-  return { id: group.id, name: group.name, students };
+  return {
+    id: group.id,
+    name: group.name,
+    subject: group.subject || "",
+    managesRoster: !group.subject,
+    students,
+  };
 }
 export function ownedLesson(teacher: string, lesson: string): Lesson {
   return JSON.parse(
@@ -204,7 +215,7 @@ export function ownedLesson(teacher: string, lesson: string): Lesson {
 export function ownedRun(teacher: string, runId: string) {
   return found(
     one(
-      "SELECT r.*,g.name AS groupName FROM runs r JOIN groups g ON r.grp=g.id WHERE g.teacher=? AND r.id=?",
+      "SELECT r.*,g.name AS groupName FROM runs r JOIN groups g ON r.grp=g.id JOIN lessons l ON r.lesson=l.id WHERE l.teacher=? AND r.id=?",
       teacher,
       runId,
     ),

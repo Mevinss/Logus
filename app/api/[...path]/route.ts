@@ -12,6 +12,7 @@ import {
   one,
   run,
   storage,
+  transaction,
   ApiError,
   fail,
   found,
@@ -161,7 +162,8 @@ async function dispatch(req: Request, parts: string[]) {
       f = found(one("SELECT * FROM files WHERE id=?", k));
     if (
       u.role === "teacher"
-        ? f.teacher !== u.id
+        ? f.teacher !== u.id &&
+          !one("SELECT 1 FROM file_readers WHERE file=? AND teacher=?", k, u.id)
         : !one(
             "SELECT r.id FROM assignments a JOIN runs r ON r.id=a.run WHERE a.student=? AND json_extract(r.body,'$.pdfUrl')=?",
             u.id,
@@ -186,8 +188,18 @@ async function dispatch(req: Request, parts: string[]) {
     const expectedStudent = req.headers.get("X-Logus-Student");
     if (expectedStudent !== null && expectedStudent !== u.id) fail(409, "Сменился аккаунт ученика. Обновите страницу.");
     if (k === "public-map-v1" && action === "review" && is("POST", 3)) return startMapReview(u.id);
-    if (is("GET", 1)) return studentHome(u.id, u.name);
-    if (is("GET", 2)) return studentDetails(u.id, k);
+    if (is("GET", 1)) {
+      run(
+        "INSERT OR IGNORE INTO cabinet_visits SELECT run,student FROM assignments WHERE student=? AND status='not_started'",
+        u.id,
+      );
+      return studentHome(u.id, u.name);
+    }
+    if (is("GET", 2)) {
+      const detail = studentDetails(u.id, k);
+      run("INSERT OR IGNORE INTO opened_lessons VALUES(?,?)", k, u.id);
+      return detail;
+    }
     if (
       parts.length === 3 &&
       ((method === "POST" && ["submit", "start"].includes(action)) ||
@@ -212,7 +224,64 @@ async function dispatch(req: Request, parts: string[]) {
       return groupDto(ownedGroup(u.id, key), base);
     }
     const group = ownedGroup(u.id, k || "");
-    if (is("GET", 2)) return groupReport(group, base);
+    if (is("GET", 2)) return groupReport(group, base, u.id);
+    if (method === "POST" && group.teacher !== u.id)
+      fail(403, "Составом управляет создатель класса.");
+    if (action === "staff" && is("POST", 3)) {
+      const data = await input(req);
+      const colleague = found(
+        one(
+          "SELECT id FROM teachers WHERE email=?",
+          required(data.email, 320).toLowerCase(),
+        ),
+      );
+      if (colleague.id === u.id) fail(400, "Вы уже управляете классом.");
+      run(
+        "INSERT INTO subject_teachers VALUES(?,?,?) ON CONFLICT(grp,teacher) DO UPDATE SET subject=excluded.subject",
+        k,
+        colleague.id,
+        required(data.subject, 120),
+      );
+      return { ok: true };
+    }
+    if (action === "import" && is("POST", 3)) {
+      const { names } = await input(req);
+      if (!Array.isArray(names) || !names.length || names.length > 500)
+        fail(400, "Вставьте от 1 до 500 имён.");
+      const cleaned = names.map((v) => required(v, 120));
+      return transaction(() => {
+        const key = (s: string) =>
+          s
+            .normalize("NFKC")
+            .toLocaleLowerCase("ru")
+            .replace(/\s+/g, " ")
+            .trim();
+        const existing = new Set(
+          all("SELECT name FROM students WHERE grp=?", k).map((s) =>
+            key(s.name),
+          ),
+        );
+        let added = 0;
+        for (const name of cleaned) {
+          if (existing.has(key(name))) continue;
+          run("INSERT INTO students VALUES(?,?,?,?)", id(), k, name, secret());
+          existing.add(key(name));
+          added++;
+        }
+        return { added, skipped: cleaned.length - added };
+      });
+    }
+    if (action === "renew" && is("POST", 4)) {
+      return transaction(() => {
+        const s = found(
+          one("SELECT name FROM students WHERE id=? AND grp=?", n, k),
+        );
+        const token = secret();
+        run("UPDATE students SET invite=? WHERE id=?", token, n);
+        run("DELETE FROM sessions WHERE role='student' AND user=?", n);
+        return { id: n, name: s.name, inviteUrl: base + "/invite/" + token };
+      });
+    }
     if (action === "students") {
       if (is("POST", 3)) {
         const data = await input(req);
@@ -229,7 +298,7 @@ async function dispatch(req: Request, parts: string[]) {
         const s = found(
             one("SELECT name FROM students WHERE id=? AND grp=?", n, k),
           ),
-          home = studentHome(n, s.name);
+          home = studentHome(n, s.name, u.id);
         return { name: s.name, works: home.items, skills: home.skills };
       }
     }
@@ -254,6 +323,38 @@ async function dispatch(req: Request, parts: string[]) {
     if (is("PATCH", 2)) {
       const data = await input(req);
       return saveLesson(editLesson(ownedLesson(u.id, k), data), u.id);
+    }
+    if (action === "share" && is("POST", 3)) {
+      const { email, groupId } = await input(req);
+      const group = ownedGroup(u.id, required(groupId));
+      const recipient = found(
+        one(
+          "SELECT id FROM teachers WHERE email=?",
+          required(email, 320).toLowerCase(),
+        ),
+      );
+      if (
+        recipient.id === u.id ||
+        (group.teacher !== recipient.id &&
+          !one(
+            "SELECT 1 FROM subject_teachers WHERE grp=? AND teacher=?",
+            group.id,
+            recipient.id,
+          ))
+      )
+        fail(400, "Выберите коллегу, который ведёт этот класс.");
+      return transaction(() => {
+        if (l.pdfUrl)
+          run(
+            "INSERT OR IGNORE INTO file_readers VALUES(?,?)",
+            l.pdfUrl.split("/").pop()!,
+            recipient.id,
+          );
+        return saveLesson(
+          { ...l, id: id(), title: l.title + " (копия)" },
+          recipient.id,
+        );
+      });
     }
     if (action === "generate" && is("POST", 3)) {
       const data = await input(req);
@@ -314,9 +415,63 @@ async function dispatch(req: Request, parts: string[]) {
       };
     }
   }
+  if (resource === "runs" && is("GET", 3) && action === "classroom") {
+    const r = ownedRun(u.id, k),
+      lesson: Lesson = JSON.parse(r.body);
+    const rows = all(
+      "SELECT a.student AS id,s.name,a.status,a.answers,a.points,o.run IS NOT NULL AS opened,v.run IS NOT NULL AS entered FROM assignments a JOIN students s ON s.id=a.student LEFT JOIN opened_lessons o ON o.run=a.run AND o.student=a.student LEFT JOIN cabinet_visits v ON v.run=a.run AND v.student=a.student WHERE a.run=? ORDER BY s.name,s.id",
+      k,
+    );
+    return {
+      questions: lesson.questions.filter((q) => q.type === "open"),
+      students: rows.map((row) => ({
+        ...row,
+        answers:
+          row.status === "pending" || row.status === "graded"
+            ? JSON.parse(row.answers)
+            : {},
+        points: JSON.parse(row.points),
+      })),
+    };
+  }
   if (resource === "works" && action) {
     const detail = teacherDetails(u.id, k, action);
     if (is("GET", 3)) return detail;
+    if (n === "mark" && is("POST", 4)) {
+      const data = await input(req);
+      return transaction(() => {
+        const d = teacherDetails(u.id, k, action);
+        const q = found(
+          d.questions.find(
+            (q) => q.id === data.questionId && q.type === "open",
+          ),
+        );
+        if (d.work.status !== "pending" || Object.hasOwn(d.points, q.id))
+          fail(409, "Этот ответ уже проверен. Обновите список.");
+        if (
+          typeof data.points !== "number" ||
+          !Number.isFinite(data.points) ||
+          data.points < 0 ||
+          data.points > q.maxPoints
+        )
+          fail(400, "Проверьте количество баллов.");
+        const note = str(data.comment || "", 2000);
+        const points = { ...d.points, [q.id]: data.points };
+        const finished = d.questions.every((q) => Object.hasOwn(points, q.id));
+        const comment = [d.work.comment, note && q.prompt + " — " + note]
+          .filter(Boolean)
+          .join("\n");
+        run(
+          "UPDATE assignments SET points=?,comment=?,status=? WHERE run=? AND student=?",
+          JSON.stringify(points),
+          comment,
+          finished ? "graded" : "pending",
+          k,
+          action,
+        );
+        return { finished };
+      });
+    }
     if (n === "grade" && is("POST", 4))
       return grade(k, action, await input(req));
     if (n === "suggest" && is("POST", 4)) {

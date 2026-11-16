@@ -77,7 +77,12 @@ export function issueRun(
     kind,
     parent,
     created: new Date().toISOString(),
-    body: JSON.stringify({ ...l, pages: selected(l) }),
+    body: JSON.stringify({
+      ...l,
+      subject:
+        group.subject || (l as Lesson & { subject?: string }).subject || "",
+      pages: selected(l),
+    }),
     groupName: group.name,
   };
   transaction(() => {
@@ -126,6 +131,7 @@ function item(r: Row) {
     kind: r.kind,
     parentId: r.parent,
     createdAt: r.created,
+    subject: JSON.parse(r.body).subject || "",
     instruction: read(r).instruction,
   };
 }
@@ -147,7 +153,7 @@ export function teacherDetails(
 ) {
   found(
     one(
-      "SELECT r.id FROM runs r JOIN groups g ON r.grp=g.id WHERE r.id=? AND g.teacher=?",
+      "SELECT r.id FROM runs r JOIN lessons l ON r.lesson=l.id WHERE r.id=? AND l.teacher=?",
       runId,
       teacher,
     ),
@@ -233,10 +239,16 @@ function skills(rows: Row[]) {
   }
   return [...totals.values()].map(s => ({...s, percent: percentage(s.earned, s.maxPoints)}));
 }
-export function studentHome(student: string, name: string) {
+export function studentHome(student: string, name: string, teacher?: string) {
   const rows = all(
-    workQuery + "WHERE a.student=? ORDER BY r.created DESC",
+    workQuery +
+      "WHERE a.student=?" +
+      (teacher
+        ? " AND r.lesson IN (SELECT id FROM lessons WHERE teacher=?)"
+        : "") +
+      " ORDER BY r.created DESC",
     student,
+    ...(teacher ? [teacher] : []),
   );
   return { name, items: rows.map(item), skills: skills(rows) };
 }
@@ -277,14 +289,17 @@ function metrics(r: Row, rows: Row[]) {
     };
   });
 }
-export function groupReport(g: Row, base: string) {
+export function groupReport(g: Row, base: string, teacher: string) {
   const rows = all(
-    workQuery + "WHERE r.grp=? ORDER BY r.created DESC,s.name",
+    workQuery +
+      "WHERE r.grp=? AND r.lesson IN (SELECT id FROM lessons WHERE teacher=?) ORDER BY r.created DESC,s.name",
     g.id,
+    teacher,
   );
   const runs = all(
-    "SELECT r.*,g.name AS groupName FROM runs r JOIN groups g ON r.grp=g.id WHERE r.grp=? ORDER BY r.created DESC",
+    "SELECT r.*,g.name AS groupName FROM runs r JOIN groups g ON r.grp=g.id JOIN lessons l ON l.id=r.lesson WHERE r.grp=? AND l.teacher=? ORDER BY r.created DESC",
     g.id,
+    teacher,
   );
   const ms = runs.flatMap((r) =>
     metrics(
@@ -296,6 +311,12 @@ export function groupReport(g: Row, base: string) {
     group: groupDto(g, base),
     runs: runs.map((r) => runDto(r, base)),
     works: rows.map(work),
+    staff: g.subject
+      ? []
+      : all(
+          "SELECT t.email,s.subject FROM subject_teachers s JOIN teachers t ON t.id=s.teacher WHERE s.grp=? ORDER BY s.subject",
+          g.id,
+        ),
     metrics: ms,
     skills: skills(rows).map((s) => ({
       ...s,
@@ -305,9 +326,10 @@ export function groupReport(g: Row, base: string) {
 }
 export function teacherHome(teacher: string, base: string) {
   const gs = all(
-    "SELECT * FROM groups WHERE teacher=? ORDER BY rowid DESC",
+    "SELECT g.*,s.subject FROM groups g LEFT JOIN subject_teachers s ON s.grp=g.id AND s.teacher=? WHERE g.teacher=? OR s.teacher IS NOT NULL ORDER BY g.rowid DESC",
     teacher,
-  ).map((g) => groupReport(g, base));
+    teacher,
+  ).map((g) => groupReport(g, base, teacher));
   const lessons = all(
     "SELECT body FROM lessons WHERE teacher=? ORDER BY rowid DESC",
     teacher,

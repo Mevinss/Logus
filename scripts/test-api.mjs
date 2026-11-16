@@ -259,6 +259,76 @@ try {
     { cwd: root, env: process.env, encoding: "utf8" },
   );
   assert.equal(record.trim(), "2");
+  const team = "groups/" + g.id;
+  const peer = (...args) => route(other, ...args);
+  await t("POST", team + "/staff", {
+    email: process.env.TEACHER_EMAIL,
+    subject: "Физика",
+  });
+  const peerReport = await peer("GET", team);
+  assert.equal(peerReport.runs.length, 0);
+  assert.equal(peerReport.group.subject, "Физика");
+  assert.ok(peerReport.group.students.every((s) => !s.inviteUrl));
+  assert.deepEqual((await peer("GET", team + "/students/" + a.id)).works, []);
+  await peer("GET", work, undefined, 404);
+  await peer("POST", team + "/renew/" + a.id, {}, 403);
+  const copy = await t("POST", "lessons/" + pdfLesson.id + "/share", {
+    groupId: g.id,
+    email: process.env.TEACHER_EMAIL,
+  });
+  assert.notEqual(copy.id, pdfLesson.id);
+  assert.equal(copy.pdfUrl, material.pdfUrl);
+  const pdfResponse = await handlers.GET(
+    new Request("http://localhost:3000" + copy.pdfUrl, {
+      headers: { cookie: other },
+    }),
+    { params: Promise.resolve({ path: copy.pdfUrl.split("/").slice(2) }) },
+  );
+  assert.equal(pdfResponse.status, 200);
+  const lessonCopy = await t("POST", le + "/share", {
+    groupId: g.id,
+    email: process.env.TEACHER_EMAIL,
+  });
+  await peer("PATCH", "lessons/" + lessonCopy.id, {
+    questions: [open, { ...open, id: "q3" }],
+  });
+  const physics = await peer("POST", "lessons/" + lessonCopy.id + "/publish", {
+    groupId: g.id,
+  });
+  assert.equal(
+    (await student("GET", "student/" + physics.id)).item.subject,
+    "Физика",
+  );
+  await student("POST", "student/" + physics.id + "/submit", {
+    answers: { q2: "Один", q3: "Два" },
+  });
+  const job = "works/" + physics.id + "/" + a.id;
+  await t("GET", job, undefined, 404);
+  assert.equal(
+    (await t("GET", team)).runs.some((r) => r.id === physics.id),
+    false,
+  );
+  await peer("POST", job + "/mark", {
+    questionId: "q2",
+    points: 3,
+    comment: "Первый ответ принят",
+  });
+  assert.equal(
+    (await student("GET", "student/" + physics.id)).item.status,
+    "pending",
+  );
+  await peer("POST", job + "/mark", { questionId: "q2", points: 0 }, 409);
+  await peer("POST", job + "/mark", { questionId: "q3", points: 1 });
+  assert.equal((await student("GET", "student/" + physics.id)).item.score, 4);
+  const renewed = await t("POST", team + "/renew/" + a.id, {});
+  await route("", "POST", "join", { token: a.inviteUrl.split("/").pop() }, 404);
+  await route(ac, "GET", "student", undefined, 401);
+  const nextCookie = await join(renewed);
+  assert.equal(
+    (await route(nextCookie, "GET", "student/" + physics.id)).item.score,
+    4,
+  );
+
   execFileSync(process.execPath, ["scripts/example.mjs"], {
     cwd: root, env: { ...process.env, LOGUS_PUBLIC_PRACTICE: "1" }, stdio: "pipe",
   });

@@ -1,4 +1,10 @@
 "use client";
+import {
+  RosterTools,
+  LiveClassroom,
+  ExportJournal,
+  InviteQR,
+} from "./ClassroomTools";
 import React, { useEffect, useState } from "react";
 import {
   AnyRow,
@@ -416,15 +422,21 @@ export default function GroupView({
   back,
   refresh,
   initialMetric,
+  lessons,
+  liveRun,
 }: {
   id: string;
   back: () => void;
   refresh: () => void;
+  lessons: AnyRow[];
+  liveRun: string;
   initialMetric?: AnyRow | null;
 }) {
   const [d, setDetails] = useState<AnyRow | null>(null),
     [tick, setRefreshTick] = useState(0),
-    [tab, setTab] = useState(initialMetric ? "Аналитика" : "Состав"),
+    [tab, setTab] = useState(
+      initialMetric ? "Аналитика" : liveRun ? "Урок идёт" : "Состав",
+    ),
     [err, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [name, setName] = useState(""),
@@ -505,7 +517,7 @@ export default function GroupView({
         </div>
       </header>
       <div className="t-tabs">
-        {["Состав", "Журнал", "Аналитика", "Занятия"].map((s) => (
+        {["Состав", "Урок идёт", "Журнал", "Аналитика", "Занятия"].map((s) => (
           <button
             key={s}
             className={s === tab ? "active" : ""}
@@ -521,42 +533,53 @@ export default function GroupView({
         </p>
       )}
       {success && <p className="t-notice">{success}</p>}
+      {tab === "Урок идёт" && (
+        <LiveClassroom initialRun={liveRun} runs={runs} reload={reload} />
+      )}
       {tab === "Состав" && (
         <section className="t-card">
           <h2>Участники группы</h2>
-          <form
-            className="t-addstudent"
-            onSubmit={(e) => {
-              e.preventDefault();
-              op(async () => {
-                const result = await api(
-                  "/api/groups/" + id + "/students",
-                  "POST",
-                  { name },
-                );
-                const s = result.students.find(
-                  (r: AnyRow) =>
-                    !g.students.some((old: AnyRow) => old.id === r.id),
-                );
-                setName("");
-                reload();
-                setInvite(s);
-              });
-            }}
-          >
-            <label className="t-field">
-              <span>Имя или псевдоним ученика</span>
-              <input
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Например, Мария Иванова"
-              />
-            </label>
-            <button className="t-primary" disabled={busy}>
-              Добавить ученика
-            </button>
-          </form>
+          <RosterTools
+            group={g}
+            staff={d.staff}
+            lessons={lessons}
+            reload={reload}
+          />
+          {g.managesRoster && (
+            <form
+              className="t-addstudent"
+              onSubmit={(e) => {
+                e.preventDefault();
+                op(async () => {
+                  const result = await api(
+                    "/api/groups/" + id + "/students",
+                    "POST",
+                    { name },
+                  );
+                  const s = result.students.find(
+                    (r: AnyRow) =>
+                      !g.students.some((old: AnyRow) => old.id === r.id),
+                  );
+                  setName("");
+                  reload();
+                  setInvite(s);
+                });
+              }}
+            >
+              <label className="t-field">
+                <span>Имя или псевдоним ученика</span>
+                <input
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Например, Мария Иванова"
+                />
+              </label>
+              <button className="t-primary" disabled={busy}>
+                Добавить ученика
+              </button>
+            </form>
+          )}
           {g.students.length === 0 && (
             <Empty title="В группе пока нет учеников" icon="group">
               После добавления участника появится индивидуальная ссылка для
@@ -578,10 +601,12 @@ export default function GroupView({
               >
                 {s.name}
               </button>
-              <button className="t-btn sm t-end" onClick={() => setInvite(s)}>
-                <Icon n="link" size={15} />
-                Приглашение
-              </button>
+              {g.managesRoster && (
+                <button className="t-btn sm t-end" onClick={() => setInvite(s)}>
+                  <Icon n="link" size={15} />
+                  Приглашение
+                </button>
+              )}
             </div>
           ))}
         </section>
@@ -609,6 +634,7 @@ export default function GroupView({
       {tab === "Журнал" && (
         <section className="t-card">
           <h2>Журнал группы</h2>
+          <ExportJournal group={g} runs={runs} works={works} />
           {runs.length ? (
             <div className="t-table-scroll">
               <table>
@@ -693,7 +719,10 @@ export default function GroupView({
                   </div>
                 ))}
               </div>
-              <p>Доля сдавших работу: {chosen.completionPercent} % ({chosen.submitted} из {chosen.assigned}).</p>
+              <p>
+                Доля сдавших работу: {chosen.completionPercent} % (
+                {chosen.submitted} из {chosen.assigned}).
+              </p>
               <h3>Ответы на вопросы</h3>
               {metrics
                 .filter((m) => m.runId === chosen.id)
@@ -706,8 +735,15 @@ export default function GroupView({
                     <div>
                       <strong>{m.prompt}</strong>
                       <small>
-                        {m.skill} · Ответили: {m.answered} · Проверено: {m.assessed} · Ожидают проверки: {m.pending}
-                        {m.assessed > 0 && <> · Полный балл: {m.correct} из {m.assessed} ({m.correctPercent} %)</>}
+                        {m.skill} · Ответили: {m.answered} · Проверено:{" "}
+                        {m.assessed} · Ожидают проверки: {m.pending}
+                        {m.assessed > 0 && (
+                          <>
+                            {" "}
+                            · Полный балл: {m.correct} из {m.assessed} (
+                            {m.correctPercent} %)
+                          </>
+                        )}
                       </small>
                     </div>
                     <Icon n="chev" />
@@ -746,7 +782,32 @@ export default function GroupView({
             Отправьте эту ссылку ученику «{invite.name}». Она открывает личный
             кабинет и все назначенные занятия.
           </p>
+          <InviteQR url={invite.inviteUrl} />
           <CopyLink url={invite.inviteUrl} />
+          <button
+            className="t-btn"
+            disabled={busy}
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Заменить приглашение? Старый QR-код перестанет работать, ученику потребуется войти заново.",
+                )
+              )
+                op(async () => {
+                  setInvite(
+                    await api(
+                      "/api/groups/" + id + "/renew/" + invite.id,
+                      "POST",
+                      {},
+                    ),
+                  );
+                  reload();
+                });
+            }}
+          >
+            Заменить приглашение
+          </button>
+          {err && <p role="alert">{err}</p>}
         </Overlay>
       )}
       {person && (
@@ -782,8 +843,15 @@ export default function GroupView({
           <div className="t-over">{metric.skill}</div>
           <h3>{metric.prompt}</h3>
           <p>
-            Ответили: {metric.answered}. Проверено: {metric.assessed}. Ожидают проверки: {metric.pending}.
-            {metric.assessed > 0 && <> Полный балл: {metric.correct} из {metric.assessed} проверенных ({metric.correctPercent} %).</>}
+            Ответили: {metric.answered}. Проверено: {metric.assessed}. Ожидают
+            проверки: {metric.pending}.
+            {metric.assessed > 0 && (
+              <>
+                {" "}
+                Полный балл: {metric.correct} из {metric.assessed} проверенных (
+                {metric.correctPercent} %).
+              </>
+            )}
           </p>
           {metric.wrongOption && (
             <p>

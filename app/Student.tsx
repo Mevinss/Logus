@@ -13,6 +13,7 @@ import "./student.css";
 type Answers = Record<string, number | string>;
 type Status = "not_started" | "in_progress" | "pending" | "graded";
 type Item = {
+  subject?: string;
   runId: string;
   title: string;
   status: Status;
@@ -454,6 +455,7 @@ export default function Student({
           <span className="st-tag">{kind(item)}</span>
           <span className="st-status">{statusText[item.status]}</span>
         </div>
+        {item.subject && <small>{item.subject}</small>}
         <h3>{item.title}</h3>
         <div className="st-split">
           {done ? (
@@ -867,7 +869,7 @@ export default function Student({
             <h2>Ответы на задания</h2>
             {lesson.questions.map((v, i) => {
               const points = lesson.points[v.id],
-                waiting = v.type === "open" && lesson.item.status === "pending",
+                waiting = v.type === "open" && lesson.item.status === "pending" && points == null,
                 value = lesson.answers[v.id];
               return (
                 <article className="st-card" key={v.id}>

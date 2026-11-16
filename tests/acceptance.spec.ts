@@ -372,12 +372,14 @@ test("Ручной урок, PDF, журнал, выборочная разми�
     );
     expect(second.id).not.toBe(run.id);
     expect(second.submitted).toBe(0);
-    await fixture.restart();
+    await fixture.restoreBackup();
     const persisted = await read(pr, url + "/api/student/" + run.id);
     expect(persisted.questions[0].prompt).toBe(changed);
     expect(persisted.item.score).toBe(2);
     expect(persisted.warmups[0].score).toBe(1);
-    expect((await pr.get(url + persisted.pdfUrl)).ok()).toBe(true);
+    const recoveredPdf = await pr.get(url + persisted.pdfUrl);
+    expect(recoveredPdf.ok()).toBe(true);
+    expect(await recoveredPdf.body()).toEqual(pdfFixture());
   } finally {
     await Promise.all([teacher.close(), pupil.close(), other.close()]);
     await fixture.cleanup();

@@ -3,7 +3,7 @@ import {
   spawnSync,
   type ChildProcessWithoutNullStreams,
 } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, readdir, rm } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -173,6 +173,20 @@ export async function launchFixture(publicPractice = false) {
       await stop();
       env.LOGUS_DATA_DIR = await mkdtemp(join(dir, "replacement-"));
       seed();
+      await start();
+    },
+    restoreBackup: async () => {
+      const root = await mkdtemp(join(dir, "backup-"));
+      const result = spawnSync(process.execPath, ["scripts/backup.mjs", root], {
+        env,
+        encoding: "utf8",
+        windowsHide: true,
+      });
+      if (result.status !== 0) throw Error(result.stderr);
+      const [folder] = await readdir(root);
+      await stop();
+      env.LOGUS_DATA_DIR = await mkdtemp(join(dir, "restored-"));
+      await cp(join(root, folder), env.LOGUS_DATA_DIR, { recursive: true });
       await start();
     },
     restart: async () => {
