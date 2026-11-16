@@ -109,15 +109,17 @@ export function QuestionEdit({
   remove,
   replace,
   fixedSkill,
+  fixedType,
 }: {
   q: Question;
   i: number;
   pages: Page[];
   pdf?: string;
   change: (q: Question) => void;
-  remove: () => void;
+  remove?: () => void;
   replace?: () => void;
   fixedSkill?: boolean;
+  fixedType?: boolean;
 }) {
   const [source, setSource] = useState(false);
   const page = pages.find((p) => p.id === q.sourceId);
@@ -128,9 +130,11 @@ export function QuestionEdit({
         <strong className="t-qnum">
           Вопрос {String(i + 1).padStart(2, "0")}
         </strong>
-        <button type="button" className="t-textbtn" onClick={remove}>
-          Удалить
-        </button>
+        {remove && (
+          <button type="button" className="t-textbtn" onClick={remove}>
+            Удалить
+          </button>
+        )}
       </div>
       <div className="t-qgrid">
         <div className="t-stack">
@@ -138,6 +142,7 @@ export function QuestionEdit({
             "Тип вопроса",
             <select
               value={q.type}
+              disabled={fixedType}
               onChange={(e) =>
                 patch({
                   type: e.target.value as Question["type"],
@@ -298,12 +303,14 @@ export function QuestionEdit({
 }
 export default function Editor({
   initial,
+  pdfLimitMiB,
   groups,
   leave,
   published,
   updated,
 }: {
   initial: AnyRow;
+  pdfLimitMiB: number;
   groups: AnyRow[];
   leave: () => void;
   published: (run: AnyRow) => void;
@@ -319,6 +326,8 @@ export default function Editor({
     [source, setSource] = useState<Page | null>(null),
     [group, setGroup] = useState(groups[0]?.id || ""),
     [publish, setPublish] = useState(false),
+    [proposal, setProposal] = useState<Question | null>(null),
+    [proposalIssues, setProposalIssues] = useState<string[]>([]),
     [msg, setMsg] = useState(""),
     [busy, setBusy] = useState(""),
     [error, setError] = useState("");
@@ -354,22 +363,23 @@ export default function Editor({
     setManual("");
     updated();
   };
-  const generate = (i?: number) =>
+  const generate = (target?: Question) =>
     run("Генерация вопросов…", async () => {
       if (!selected.length) throw Error("Выберите страницы материала.");
       await save();
       const r = await api(
         "/api/lessons/" + lesson.id + "/generate",
         "POST",
-        {},
+        target ? { replaceQuestionId: target.id } : {},
       );
-      if (r.questions.length) {
-        setQs(
-          i === undefined
-            ? r.questions
-            : qs.map((q, k) => (k === i ? { ...r.questions[0], id: q.id } : q)),
-        );
+      if (target) {
+        if (r.questions.length !== 1 || r.questions[0].id !== target.id)
+          throw Error("Не удалось получить замену для выбранного вопроса.");
+        setProposal(r.questions[0]);
+        setProposalIssues(r.issues || []);
+        return;
       }
+      if (r.questions.length) setQs(r.questions);
       setMsg(
         [
           ...(r.issues || []),
@@ -416,6 +426,11 @@ export default function Editor({
                   const file = e.target.files?.[0];
                   if (!file) return;
                   e.target.value = "";
+                  if (file.size > pdfLimitMiB * 1024 * 1024) {
+                    setError(`Максимальный размер PDF — ${pdfLimitMiB} МБ.`);
+                    setMsg("");
+                    return;
+                  }
                   void run("Извлекаем текст…", async () => {
                     const f = new FormData();
                     f.append("file", file);
@@ -433,6 +448,7 @@ export default function Editor({
                 }}
               />
             </label>
+            <small className="t-muted">До {pdfLimitMiB} МБ</small>
             <button
               className="t-btn"
               onClick={() => {
@@ -535,7 +551,7 @@ export default function Editor({
               pdf={lesson.pdfUrl}
               change={(v) => setQs(qs.map((o, j) => (i === j ? v : o)))}
               remove={() => setQs(qs.filter((_, j) => i !== j))}
-              replace={() => generate(i)}
+              replace={() => generate(q)}
             />
           ))}
           <button
@@ -593,6 +609,57 @@ export default function Editor({
       )}
       {source && (
         <Source p={source} pdf={lesson.pdfUrl} close={() => setSource(null)} />
+      )}
+      {proposal && (
+        <Overlay title="Предложенная замена" close={() => setProposal(null)}>
+          {proposalIssues.length > 0 && (
+            <p role="alert" className="t-notice">
+              {proposalIssues.join(" ")}
+            </p>
+          )}
+          <QuestionEdit
+            q={proposal}
+            i={qs.findIndex((q) => q.id === proposal.id)}
+            pages={pages.filter((p) => p.id === proposal.sourceId)}
+            pdf={lesson.pdfUrl}
+            change={setProposal}
+            fixedSkill
+            fixedType
+          />
+          <div className="t-actions">
+            <button
+              className="t-primary"
+              onClick={() => {
+                try {
+                  validate([proposal], pages, selected);
+                  const normalize = (prompt: string) =>
+                    prompt
+                      .normalize("NFKC")
+                      .toLocaleLowerCase("ru")
+                      .replace(/[^\p{L}\p{N}]+/gu, "");
+                  if (
+                    qs.some(
+                      (q) => normalize(q.prompt) === normalize(proposal.prompt),
+                    )
+                  )
+                    throw Error("Введите новую формулировку вопроса.");
+                  setQs(qs.map((q) => (q.id === proposal.id ? proposal : q)));
+                  setProposal(null);
+                  setMsg("Вопрос заменён. Сохраните черновик.");
+                } catch (e) {
+                  setProposalIssues([
+                    e instanceof Error ? e.message : "Проверьте задание.",
+                  ]);
+                }
+              }}
+            >
+              Применить замену
+            </button>
+            <button className="t-btn" onClick={() => setProposal(null)}>
+              Оставить исходный вопрос
+            </button>
+          </div>
+        </Overlay>
       )}
       {publish && (
         <Overlay title="Провести урок" close={() => setPublish(false)}>

@@ -194,6 +194,7 @@ export default function Teacher({
           <Editor
             key={edit.id}
             initial={edit}
+            pdfLimitMiB={data.pdfLimitMiB}
             groups={groups}
             leave={() => {
               navigate("Мои уроки");
@@ -277,7 +278,7 @@ export default function Teacher({
                             <b>{r.title}</b>
                             <small>
                               {r.groupName} · Сдали {r.submitted} из{" "}
-                              {r.assigned}
+                              {r.assigned} ({r.completionPercent} %)
                             </small>
                           </span>
                           <Icon n="chev" size={16} />
@@ -320,11 +321,11 @@ export default function Teacher({
                               " из " +
                               metric.answered +
                               " ответивших."
-                            : "Правильно ответили " +
+                            : "Полный балл: " +
                               metric.correct +
                               " из " +
-                              metric.answered +
-                              "."}
+                              metric.assessed +
+                              " проверенных."}
                         </p>
                         <button
                           className="t-textbtn"

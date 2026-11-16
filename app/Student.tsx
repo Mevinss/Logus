@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Brand from "./Brand";
+import {
+  practiceRun,
+  savePracticeAnswers,
+  savePracticeResult,
+} from "./practice-storage";
 import "./student.css";
 
 type Answers = Record<string, number | string>;
@@ -14,6 +19,7 @@ type Item = {
   parentId: string | null;
   instruction: string;
   earned: number;
+  gradedMaxPoints: number;
   maxPoints: number;
   score: number | null;
   comment: string;
@@ -41,6 +47,24 @@ type Lesson = {
   points: Record<string, number>;
   warmups: Item[];
 };
+function lessonSkills(lesson: Lesson) {
+  const skills = new Map<
+    string,
+    { skill: string; earned: number; maxPoints: number }
+  >();
+  for (const q of lesson.questions) {
+    if (!Object.hasOwn(lesson.points, q.id)) continue;
+    const row = skills.get(q.skill) || {
+      skill: q.skill,
+      earned: 0,
+      maxPoints: 0,
+    };
+    row.earned += lesson.points[q.id];
+    row.maxPoints += q.maxPoints;
+    skills.set(q.skill, row);
+  }
+  return [...skills.values()];
+}
 type Queue = Record<string, Answers>;
 type View = "home" | "lesson" | "test" | "result";
 const statusText = {
@@ -56,7 +80,9 @@ const answered = (a: number | string | undefined) =>
 function message(e: unknown) {
   return e instanceof Error ? e.message : "Не удалось выполнить действие.";
 }
-async function api<T>(
+class SessionExpired extends Error {}
+async function requestStudent<T>(
+  studentId: string,
   path: string,
   method = "GET",
   body?: unknown,
@@ -66,13 +92,18 @@ async function api<T>(
     res = await fetch("/api/student" + path, {
       method,
       cache: "no-store",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Logus-Student": studentId,
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
     throw new Error("Нет связи с сервером. Проверьте подключение.");
   }
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401)
+    throw new SessionExpired(data.error || "Сессия завершена.");
   if (!res.ok)
     throw new Error(data.error || "Не удалось получить данные с сервера.");
   return data;
@@ -98,12 +129,27 @@ export default function Student({
   studentId,
   onLogout,
   initialRun,
+  practiceMode = false,
+  onSessionExpired,
 }: {
   name: string;
   studentId: string;
   onLogout: () => void;
   initialRun?: string | null;
+  practiceMode?: boolean;
+  onSessionExpired?: () => void;
 }) {
+  const api = useCallback(
+    async <T,>(path: string, method = "GET", body?: unknown) => {
+      try {
+        return await requestStudent<T>(studentId, path, method, body);
+      } catch (e) {
+        if (e instanceof SessionExpired) onSessionExpired?.();
+        throw e;
+      }
+    },
+    [studentId, onSessionExpired],
+  );
   const [run, setRun] = useState<string | null>(initialRun || null);
   const [home, setHome] = useState<Home | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -164,7 +210,7 @@ export default function Student({
     } finally {
       syncTask.current = null;
     }
-  }, [persist]);
+  }, [persist, api]);
   useEffect(() => {
     queue.current = loadQueue(draftKey);
     const retry = () => {
@@ -181,7 +227,12 @@ export default function Student({
   }, [draftKey, sync]);
   useEffect(() => {
     const onPop = () => {
-      const id = location.pathname.match(/^\/student\/([^/]+)/)?.[1] || null;
+      const id =
+        practiceMode && location.pathname === "/practice"
+          ? new URLSearchParams(location.search).has("home")
+            ? null
+            : practiceRun
+          : location.pathname.match(/^\/student\/([^/]+)/)?.[1] || null;
       setRun(id);
       setView(id ? "lesson" : "home");
       setConfirm(false);
@@ -190,7 +241,7 @@ export default function Student({
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, []);
+  }, [practiceMode]);
   const [reload, setReload] = useState(0);
   useEffect(() => {
     let active = true;
@@ -244,7 +295,7 @@ export default function Student({
     return () => {
       active = false;
     };
-  }, [run, reload, draftKey, persist]);
+  }, [run, reload, draftKey, persist, api]);
   useEffect(() => {
     if (!run || view !== "result") return;
     let active = true;
@@ -266,7 +317,7 @@ export default function Student({
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
     };
-  }, [run, view]);
+  }, [run, view, api]);
   useEffect(() => {
     if (view !== "lesson" || sourceTarget.current === null) return;
     document
@@ -274,6 +325,20 @@ export default function Student({
       ?.scrollIntoView({ block: "start" });
     sourceTarget.current = null;
   }, [view]);
+  useEffect(() => {
+    if (run !== practiceRun || !lesson || !completed(lesson.item.status))
+      return;
+    const { item } = lesson;
+    savePracticeAnswers(studentId, lesson.answers, true);
+    savePracticeResult(studentId, {
+      title: item.title,
+      status: item.status === "graded" ? "graded" : "pending",
+      earned: item.score ?? item.earned,
+      maximum: item.gradedMaxPoints,
+      savedAt: new Date().toISOString(),
+      skills: lessonSkills(lesson),
+    });
+  }, [studentId, run, lesson]);
   function navigate(id: string | null) {
     setLesson(null);
     setRun(id);
@@ -281,7 +346,17 @@ export default function Student({
     setConfirm(false);
     setError("");
     setBusy(false);
-    history.pushState({}, "", id ? "/student/" + id : "/student");
+    history.pushState(
+      {},
+      "",
+      practiceMode && (!id || id === practiceRun)
+        ? id
+          ? "/practice"
+          : "/practice?home"
+        : id
+          ? "/student/" + id
+          : "/student",
+    );
     window.scrollTo(0, 0);
   }
   function at(i: number) {
@@ -308,9 +383,11 @@ export default function Student({
   }
   function answer(q: string, value: number | string) {
     if (!run) return;
-    if (run === "public-map-v1") {
-      try {localStorage.setItem("logus:practice:copy:"+studentId,JSON.stringify({answers:{...answers,[q]:value},submitted:false}));} catch {setLocalWarning(true);}
-    }
+    if (
+      run === practiceRun &&
+      !savePracticeAnswers(studentId, { ...answers, [q]: value }, false)
+    )
+      setLocalWarning(true);
     setAnswers((old) => ({ ...old, [q]: value }));
     queue.current[run] = { ...queue.current[run], [q]: value };
     persist();
@@ -330,9 +407,8 @@ export default function Student({
       await api("/" + run + "/submit", "POST", {
         answers: { ...queue.current[run] },
       });
-      if(run === "public-map-v1") {
-        try {localStorage.setItem("logus:practice:copy:"+studentId,JSON.stringify({answers,submitted:true}));} catch {setLocalWarning(true);}
-      }
+      if (run === practiceRun && !savePracticeAnswers(studentId, answers, true))
+        setLocalWarning(true);
       delete queue.current[run];
       persist();
       try {
@@ -371,7 +447,7 @@ export default function Student({
             <span>
               {item.status === "graded" ? "Итог" : "За проверенную часть"} ·{" "}
               <b>
-                {item.score ?? item.earned} из {item.maxPoints}
+                {item.score ?? item.earned} из {item.gradedMaxPoints}
               </b>
             </span>
           ) : (
@@ -706,11 +782,17 @@ export default function Student({
               </div>
               <div className="st-result">
                 <strong>{lesson.item.score ?? lesson.item.earned}</strong>
-                <span>из {lesson.item.maxPoints} за работу</span>
+                <span>
+                  из {lesson.item.gradedMaxPoints}{" "}
+                  {lesson.item.status === "pending"
+                    ? "за проверенные задания"
+                    : "за работу"}
+                </span>
               </div>
               {lesson.item.status === "pending" && (
                 <p className="st-sub">
-                  Преподаватель проверит открытый ответ. Итог появится здесь.
+                  Максимум за всю работу — {lesson.item.maxPoints}. Итог
+                  появится после проверки открытого ответа.
                 </p>
               )}
               {lesson.item.comment && (
@@ -720,6 +802,19 @@ export default function Student({
                 </div>
               )}
             </section>
+            {lessonSkills(lesson).length > 0 && (
+              <section className="st-card">
+                <h2>Навыки в этой работе</h2>
+                {lessonSkills(lesson).map((s) => (
+                  <div className="st-scoreline" key={s.skill}>
+                    <span>{s.skill}</span>
+                    <strong>
+                      {s.earned} из {s.maxPoints}
+                    </strong>
+                  </div>
+                ))}
+              </section>
+            )}
             {lesson.warmups.length > 0 && (
               <section className="st-cards">
                 <h2>Разминки по этому уроку</h2>

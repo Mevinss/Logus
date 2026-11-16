@@ -6,6 +6,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { networkInterfaces } from "node:os";
+import { cloudStorage } from "./server-cloud.mjs";
 import { connect } from "./server-schema.mjs";
 
 export type Page = { id: number; text: string };
@@ -34,7 +35,10 @@ export type Lesson = {
 export type Row = Record<string, any>;
 type Bind = string | number | null;
 let cached: ReturnType<typeof connect> | undefined;
-export function storage() {
+export function storage(): ReturnType<typeof connect> {
+  const isolated = cloudStorage();
+  if (isolated) return isolated;
+  if (process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL === "1") throw Error("Требуется контекст облачного запроса.");
   return (cached ||= connect());
 }
 export function all(sql: string, ...args: Bind[]): Row[] {

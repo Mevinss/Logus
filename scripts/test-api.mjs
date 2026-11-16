@@ -15,6 +15,8 @@ process.env.LOGUS_DATA_DIR = dir;
 process.env.TEACHER_EMAIL = "test@logus.local";
 process.env.TEACHER_PASSWORD = randomUUID();
 process.env.PUBLIC_BASE_URL = "http://192.168.1.100:3000";
+delete process.env.VERCEL;
+delete process.env.BLOB_READ_WRITE_TOKEN;
 delete process.env.OPENAI_API_KEY;
 const hooks = registerHooks({
   resolve(specifier, context, next) {
@@ -48,10 +50,10 @@ try {
   setup();
   setup();
   const handlers = await import("../app/api/[...path]/route.ts");
-  const route = async (cookie, method, p, data, expected = 200) => {
+  const route = async (cookie, method, p, data, expected = 200, headers = {}) => {
     const request = new Request("http://localhost:3000/api/" + p, {
       method,
-      headers: { cookie, "content-type": "application/json" },
+      headers: { cookie, "content-type": "application/json", ...headers },
       body: data === undefined ? undefined : JSON.stringify(data),
     });
     const response = await handlers[method](request, {
@@ -156,7 +158,9 @@ try {
   });
   const path = "student/" + first.id,
     work = "works/" + first.id + "/" + a.id;
-  const snapshot = await student("GET", path);
+  await route(bc, "GET", path, undefined, 409, { "X-Logus-Student": a.id });
+  await route(bc, "POST", path + "/submit", { answers: { q1: 0 } }, 409, { "X-Logus-Student": a.id });
+  const snapshot = await route(ac, "GET", path, undefined, 200, { "X-Logus-Student": a.id });
   assert.equal(snapshot.pages.length, 1);
   assert.equal(snapshot.questions[0].prompt, "Цвет неба?");
   for (const q of snapshot.questions)
@@ -190,13 +194,26 @@ try {
     [2, 1, 1, 1],
   );
   assert.equal(journal.metrics[0].wrongOption, "Красный");
-  assert.equal(journal.metrics[0].answered, 1);
+  assert.equal(journal.runs[0].completionPercent, 50);
+  const questionStats = (metric) => [
+    metric.answered, metric.assessed, metric.pending, metric.correct,
+    metric.incorrect, metric.correctPercent,
+  ];
+  assert.deepEqual(questionStats(journal.metrics[0]), [1, 1, 0, 0, 1, 0]);
+  assert.deepEqual(questionStats(journal.metrics[1]), [1, 0, 1, 0, 0, null]);
+  assert.equal(journal.skills[0].maxPoints, 2);
+  assert.equal(journal.skills[0].percent, 0);
+  assert.equal(submitted.gradedMaxPoints, 2);
   assert.equal(journal.works.find((w) => w.studentId === b.id).score, null);
   await student("GET", work, undefined, 403);
   await t("POST", work + "/suggest", { questionId: "q2" }, 503);
   await t("POST", work + "/grade", { points: { q2: 4 } }, 400);
   await t("POST", work + "/grade", { points: { q2: 2 }, comment: "Принято" });
   assert.equal((await student("GET", path)).item.score, 2);
+  journal = await report();
+  assert.deepEqual(questionStats(journal.metrics[1]), [1, 1, 0, 0, 1, 0]);
+  assert.equal(journal.skills[0].percent, 40);
+  assert.equal((await student("GET", path)).item.gradedMaxPoints, 5);
   const warm = await t("POST", "runs/" + first.id + "/warmup", {
     questionId: "q1",
     questions: [{ ...choice, id: "w1", prompt: "Какого цвета дневное небо?" }],
@@ -217,8 +234,10 @@ try {
   );
   assert.equal(journal.works.find((w) => w.runId === warm.id).score, 2);
   assert.deepEqual((await student("GET", "student")).skills, [
-    { skill: "Цвет", earned: 4, maxPoints: 7 },
+    { skill: "Цвет", earned: 4, maxPoints: 7, percent: 57 },
   ]);
+  assert.equal(journal.runs.find(r => r.id === warm.id).completionPercent, 100);
+  assert.deepEqual(questionStats(journal.metrics.find(m => m.runId === warm.id)), [1, 1, 0, 1, 0, 100]);
   const g2 = await t("POST", "groups", { name: "Вторая" });
   await t("POST", "groups/" + g2.id + "/students", { name: "Ирина" });
   const otherRun = await t("POST", le + "/publish", { groupId: g2.id });

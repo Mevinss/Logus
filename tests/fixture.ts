@@ -47,7 +47,7 @@ export const open = {
   sourceId: 2,
   quote,
 };
-export async function launchFixture() {
+export async function launchFixture(publicPractice = false) {
   const dir = await mkdtemp(join(tmpdir(), "logus-e2e-"));
   let providerMode: "ok" | "invalid" | "down" = "ok";
   const provider = createServer(async (req, res) => {
@@ -79,13 +79,11 @@ export async function launchFixture() {
               open,
             ],
           };
-    res
-      .writeHead(200, { "Content-Type": "application/json" })
-      .end(
-        JSON.stringify({
-          choices: [{ message: { content: JSON.stringify(reply) } }],
-        }),
-      );
+    res.writeHead(200, { "Content-Type": "application/json" }).end(
+      JSON.stringify({
+        choices: [{ message: { content: JSON.stringify(reply) } }],
+      }),
+    );
   });
   const aiPort = await listen(provider);
   const reserve = createServer();
@@ -96,19 +94,27 @@ export async function launchFixture() {
     ...process.env,
     NODE_ENV: "production",
     NEXT_TELEMETRY_DISABLED: "1",
+    VERCEL: "",
+    BLOB_READ_WRITE_TOKEN: "",
     LOGUS_DATA_DIR: dir,
     PUBLIC_BASE_URL: url,
+    LOGUS_PUBLIC_PRACTICE: publicPractice ? "1" : "0",
     TEACHER_EMAIL: teacherLogin.email,
     TEACHER_PASSWORD: teacherLogin.password,
     OPENAI_API_KEY: "test-fixture",
     AI_BASE_URL: "http://127.0.0.1:" + aiPort + "/v1",
   };
-  const setup = spawnSync(process.execPath, ["scripts/setup.mjs"], {
-    env,
-    encoding: "utf8",
-    windowsHide: true,
-  });
-  if (setup.status !== 0) throw Error(setup.stderr);
+  function seed() {
+    for (const script of publicPractice ? ["setup", "example"] : ["setup"]) {
+      const setup = spawnSync(
+        process.execPath,
+        ["scripts/" + script + ".mjs"],
+        { env, encoding: "utf8", windowsHide: true },
+      );
+      if (setup.status !== 0) throw Error(setup.stderr);
+    }
+  }
+  seed();
   let processRef: ChildProcessWithoutNullStreams | null = null;
   let log = "";
   async function start() {
@@ -162,6 +168,12 @@ export async function launchFixture() {
     url,
     setMode: (value: typeof providerMode) => {
       providerMode = value;
+    },
+    resetServiceStorage: async () => {
+      await stop();
+      env.LOGUS_DATA_DIR = await mkdtemp(join(dir, "replacement-"));
+      seed();
+      await start();
     },
     restart: async () => {
       await stop();

@@ -17,6 +17,8 @@ import {
 
 type Grades = Record<string, number>;
 const total = (values: number[]) => values.reduce((a, b) => a + b, 0);
+const percentage = (value: number, total: number) =>
+  total ? Math.round((100 * value) / total) : null;
 const max = (l: Lesson) => total(l.questions.map((q) => q.maxPoints));
 const read = (r: Row): Lesson => JSON.parse(r.body);
 const done = (s: string) => s === "graded" || s === "pending";
@@ -28,6 +30,8 @@ export function runDto(r: Row, base: string) {
     );
   const count = (pred: (s: string) => boolean) =>
     total(counts.filter((c) => pred(c.status)).map((c) => c.n));
+  const assigned = count(() => true);
+  const submitted = count(done);
   return {
     id: r.id,
     lessonId: r.lesson,
@@ -37,9 +41,10 @@ export function runDto(r: Row, base: string) {
     kind: r.kind,
     parentId: r.parent,
     url: base + "/student/" + r.id,
-    assigned: count(() => true),
+    assigned,
     started: count((s) => s !== "not_started"),
-    submitted: count(done),
+    submitted,
+    completionPercent: percentage(submitted, assigned),
     pending: count((s) => s === "pending"),
     maxPoints: max(l),
     createdAt: r.created,
@@ -99,7 +104,8 @@ export function assignment(runId: string, student: string) {
 }
 export function work(r: Row) {
   const l = read(r),
-    earned = total(Object.values(JSON.parse(r.points) as Grades));
+    points: Grades = JSON.parse(r.points),
+    earned = total(Object.values(points));
   return {
     runId: r.run,
     studentId: r.student,
@@ -109,6 +115,7 @@ export function work(r: Row) {
     score: r.status === "graded" ? earned : null,
     maxPoints: max(l),
     earned,
+    gradedMaxPoints: total(l.questions.filter(q => Object.hasOwn(points, q.id)).map(q => q.maxPoints)),
     comment: r.comment,
   };
 }
@@ -191,7 +198,7 @@ function skills(rows: Row[]) {
         totals.set(q.skill, s);
       }
   }
-  return [...totals.values()];
+  return [...totals.values()].map(s => ({...s, percent: percentage(s.earned, s.maxPoints)}));
 }
 export function studentHome(student: string, name: string) {
   const rows = all(
@@ -212,9 +219,9 @@ function metrics(r: Row, rows: Row[]) {
     const answered = submissions.filter(
       (s) => s.a[q.id] !== undefined && s.a[q.id] !== null && s.a[q.id] !== "",
     );
-    const wrong = answered.filter(
-      (s) => Object.hasOwn(s.p, q.id) && s.p[q.id] < q.maxPoints,
-    );
+    const assessed = answered.filter(s => Object.hasOwn(s.p, q.id));
+    const wrong = assessed.filter(s => s.p[q.id] < q.maxPoints);
+    const correct = assessed.length - wrong.length;
     const counts = new Map<number, number>();
     if (q.type === "choice")
       for (const s of wrong)
@@ -226,7 +233,10 @@ function metrics(r: Row, rows: Row[]) {
       prompt: q.prompt,
       skill: q.skill,
       answered: answered.length,
-      correct: answered.filter((s) => s.p[q.id] === q.maxPoints).length,
+      assessed: assessed.length,
+      pending: answered.length - assessed.length,
+      correct,
+      correctPercent: percentage(correct, assessed.length),
       wrongOption: top ? q.options[top[0]] : null,
       wrongCount: top?.[1] || 0,
       works: answered.map((s) => s.w),

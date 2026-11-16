@@ -1,4 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { CloudStorageError, cloudStorage, readCloudPdf, stageCloudPdf, withRequestDatabase } from "../../../lib/server-cloud.mjs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import {
@@ -48,6 +49,7 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+const pdfLimitMiB = () => process.env.VERCEL === "1" ? 4 : 20;
 type Context = { params: Promise<{ path: string[] }> };
 async function input(req: Request): Promise<Row> {
   const raw = await req.text();
@@ -63,12 +65,37 @@ async function input(req: Request): Promise<Row> {
     fail(400, "Ожидается объект.");
   return parsed;
 }
-async function generate(l: Lesson, skill?: string, originalPrompt?: string) {
-  const pages = selected(l);
+async function generate(
+  l: Lesson,
+  skill?: string,
+  originalPrompt?: string,
+  replacement?: Question,
+) {
+  const pages = selected(l).filter(
+    (p) => !replacement || p.id === replacement.sourceId,
+  );
   if (!pages.length || !pages.some((p) => p.text.trim()))
     fail(400, "Выберите страницы с текстом.");
   try {
-    const questions = await generateQuestions(pages, skill, originalPrompt);
+    const otherPrompts = replacement
+      ? l.questions.filter(q => q.id !== replacement.id && typeof q.prompt === "string").map(q => q.prompt)
+      : [];
+    const questions = await generateQuestions(
+      pages, skill, originalPrompt,
+      replacement ? { type: replacement.type, maxPoints: replacement.maxPoints, otherPrompts } : undefined,
+    );
+    if (replacement) {
+      const candidate = questions[0];
+      if (candidate.type !== replacement.type || candidate.sourceId !== replacement.sourceId)
+        throw new Error("ИИ изменил тип или страницу исходного вопроса. Повторите замену.");
+      const normalizePrompt = (value: string) =>
+        value.normalize("NFKC").toLocaleLowerCase("ru").replace(/[^\p{L}\p{N}]+/gu, "");
+      const candidatePrompt = normalizePrompt(candidate.prompt);
+      if ([replacement.prompt, ...otherPrompts].some(p => normalizePrompt(p) === candidatePrompt))
+        throw new Error("ИИ повторил формулировку одного из вопросов. Повторите замену.");
+      candidate.id = replacement.id;
+      candidate.maxPoints = replacement.maxPoints;
+    }
     return { questions, issues: questionIssues(questions, pages) };
   } catch (e) {
     fail(
@@ -141,10 +168,10 @@ async function dispatch(req: Request, parts: string[]) {
           )
     )
       fail(404, "Файл не найден.");
-    const bytes = await readFile(
+    const content = cloudStorage() ? await readCloudPdf(f.id) : new Uint8Array(await readFile(
       /* turbopackIgnore: true */ join(storage().dir, "files", f.id + ".pdf"),
-    );
-    return new Response(new Uint8Array(bytes), {
+    ));
+    return new Response(content, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": 'inline; filename="material.pdf"',
@@ -155,6 +182,8 @@ async function dispatch(req: Request, parts: string[]) {
   }
   if (resource === "student") {
     const u = session(req, "student");
+    const expectedStudent = req.headers.get("X-Logus-Student");
+    if (expectedStudent !== null && expectedStudent !== u.id) fail(409, "Сменился аккаунт ученика. Обновите страницу.");
     if (is("GET", 1)) return studentHome(u.id, u.name);
     if (is("GET", 2)) return studentDetails(u.id, k);
     if (
@@ -167,7 +196,7 @@ async function dispatch(req: Request, parts: string[]) {
   }
   const u = session(req, "teacher"),
     base = baseUrl(req);
-  if (resource === "teacher" && is("GET", 1)) return teacherHome(u.id, base);
+  if (resource === "teacher" && is("GET", 1)) return { ...teacherHome(u.id, base), pdfLimitMiB: pdfLimitMiB() };
   if (resource === "groups") {
     if (is("POST", 1)) {
       const data = await input(req),
@@ -224,7 +253,15 @@ async function dispatch(req: Request, parts: string[]) {
       const data = await input(req);
       return saveLesson(editLesson(ownedLesson(u.id, k), data), u.id);
     }
-    if (action === "generate" && is("POST", 3)) return generate(l);
+    if (action === "generate" && is("POST", 3)) {
+      const data = await input(req);
+      if (!("replaceQuestionId" in data)) return generate(l);
+      const questionId = required(data.replaceQuestionId);
+      const target = found(l.questions.find(q => q.id === questionId));
+      if (!target.prompt?.trim() || !target.skill?.trim())
+        fail(400, "Укажите исходную формулировку и навык для замены.");
+      return generate(l, target.skill, target.prompt, target);
+    }
     if (action === "publish" && is("POST", 3)) {
       const data = await input(req);
       return issueRun(
@@ -234,13 +271,15 @@ async function dispatch(req: Request, parts: string[]) {
       );
     }
     if (action === "pdf" && is("POST", 3)) {
-      const limit = 20 * 1024 * 1024;
+      const maxMiB = pdfLimitMiB();
+      const limit = maxMiB * 1024 * 1024;
+      const limitMessage = `Максимальный размер PDF — ${maxMiB} МБ.`;
       if (Number(req.headers.get("content-length")) > limit + 65536)
-        fail(413, "Максимальный размер PDF — 20 МБ.");
+        fail(413, limitMessage);
       const form = await req.formData(),
         file = form.get("file");
-      if (!file || typeof file === "string" || file.size > limit)
-        fail(400, "Выберите PDF до 20 МБ.");
+      if (!file || typeof file === "string") fail(400, "Выберите PDF.");
+      if (file.size > limit) fail(413, limitMessage);
       const bytes = Buffer.from(await file.arrayBuffer());
       if (!bytes.subarray(0, 1024).includes(Buffer.from("%PDF-")))
         fail(400, "Не удалось распознать PDF.");
@@ -253,7 +292,8 @@ async function dispatch(req: Request, parts: string[]) {
       if (texts.join("").length > 4000000)
         fail(413, "Загрузите PDF меньшего объёма.");
       const key = id();
-      await writeFile(
+      if (cloudStorage()) stageCloudPdf(key, bytes);
+      else await writeFile(
         /* turbopackIgnore: true */ join(storage().dir, "files", key + ".pdf"),
         bytes,
         { flag: "wx" },
@@ -333,14 +373,15 @@ async function dispatch(req: Request, parts: string[]) {
 }
 async function handle(req: Request, ctx: Context) {
   try {
-    const result = await dispatch(req, (await ctx.params).path);
+    const parts = (await ctx.params).path;
+    const result = await withRequestDatabase(() => dispatch(req, parts));
     return result instanceof Response
       ? result
       : Response.json(result, {
           headers: { "Cache-Control": "private, no-store" },
         });
   } catch (e) {
-    if (!(e instanceof ApiError))
+    if (!(e instanceof ApiError) && !(e instanceof CloudStorageError))
       console.error(
         "Logus API",
         e instanceof Error ? e.name + ": " + e.message : "unexpected error",
@@ -348,12 +389,12 @@ async function handle(req: Request, ctx: Context) {
     return Response.json(
       {
         error:
-          e instanceof ApiError
+          (e instanceof ApiError || e instanceof CloudStorageError)
             ? e.message
             : "Не удалось выполнить действие. Попробуйте ещё раз.",
       },
       {
-        status: e instanceof ApiError ? e.status : 500,
+        status: (e instanceof ApiError || e instanceof CloudStorageError) ? e.status : 500,
         headers: { "Cache-Control": "no-store" },
       },
     );

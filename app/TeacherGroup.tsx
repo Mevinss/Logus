@@ -599,7 +599,7 @@ export default function GroupView({
               <strong>{r.title}</strong>
               <p className="t-muted">
                 {r.kind === "warmup" ? "Разминка" : "Урок"} · Сдали{" "}
-                {r.submitted} из {r.assigned}
+                {r.submitted} из {r.assigned} ({r.completionPercent} %)
               </p>
               <CopyLink url={r.url} label="Ссылка на занятие" />
             </div>
@@ -693,6 +693,7 @@ export default function GroupView({
                   </div>
                 ))}
               </div>
+              <p>Доля сдавших работу: {chosen.completionPercent} % ({chosen.submitted} из {chosen.assigned}).</p>
               <h3>Ответы на вопросы</h3>
               {metrics
                 .filter((m) => m.runId === chosen.id)
@@ -705,8 +706,8 @@ export default function GroupView({
                     <div>
                       <strong>{m.prompt}</strong>
                       <small>
-                        {m.skill} · Верно: {m.correct} из {m.answered}{" "}
-                        ответивших
+                        {m.skill} · Ответили: {m.answered} · Проверено: {m.assessed} · Ожидают проверки: {m.pending}
+                        {m.assessed > 0 && <> · Полный балл: {m.correct} из {m.assessed} ({m.correctPercent} %)</>}
                       </small>
                     </div>
                     <Icon n="chev" />
@@ -716,7 +717,7 @@ export default function GroupView({
               {d.skills.map((s: AnyRow) => (
                 <details key={s.skill} className="t-inset">
                   <summary>
-                    {s.skill} · {s.earned} / {s.maxPoints}
+                    {s.skill} · {s.earned} / {s.maxPoints} ({s.percent} %)
                   </summary>
                   {s.questions.map((m: AnyRow) => (
                     <button
@@ -771,7 +772,7 @@ export default function GroupView({
           <h3>Баллы по навыкам</h3>
           {person.skills.map((s: AnyRow) => (
             <p key={s.skill}>
-              {s.skill} · {s.earned} / {s.maxPoints}
+              {s.skill} · {s.earned} / {s.maxPoints} ({s.percent} %)
             </p>
           ))}
         </Overlay>
@@ -781,7 +782,8 @@ export default function GroupView({
           <div className="t-over">{metric.skill}</div>
           <h3>{metric.prompt}</h3>
           <p>
-            Правильно ответили {metric.correct} из {metric.answered}.
+            Ответили: {metric.answered}. Проверено: {metric.assessed}. Ожидают проверки: {metric.pending}.
+            {metric.assessed > 0 && <> Полный балл: {metric.correct} из {metric.assessed} проверенных ({metric.correctPercent} %).</>}
           </p>
           {metric.wrongOption && (
             <p>
