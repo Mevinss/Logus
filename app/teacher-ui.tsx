@@ -1,4 +1,5 @@
 "use client";
+import { translate, useI18n } from "./I18n";
 import React from "react";
 
 const paths: Record<string, React.ReactNode> = {
@@ -80,6 +81,7 @@ const paths: Record<string, React.ReactNode> = {
   ),
 };
 export function Icon({ n, size = 18 }: { n: string; size?: number }) {
+  useI18n();
   return (
     <svg
       aria-hidden="true"
@@ -105,6 +107,7 @@ export function Empty({
   children?: React.ReactNode;
   icon?: string;
 }) {
+  useI18n();
   return (
     <div className="t-empty">
       <span className="t-iconbox">
@@ -126,6 +129,7 @@ export function Overlay({
   close: () => void;
   children: React.ReactNode;
 }) {
+  useI18n();
   const ref = React.useRef<HTMLDialogElement>(null);
   React.useEffect(() => {
     const d = ref.current;
@@ -146,7 +150,7 @@ export function Overlay({
         <button
           type="button"
           className="t-iconbtn"
-          aria-label="Закрыть"
+          aria-label={translate("ui.close")}
           onClick={close}
         >
           <Icon n="x" />
@@ -177,22 +181,22 @@ export async function api(
   if (!res.ok)
     throw Error(
       typeof payload.error === "string"
-        ? payload.error
-        : payload.message ||
-            "Не удалось выполнить действие. Попробуйте ещё раз.",
+        ? translate(payload.error)
+        : (payload.message ? translate(payload.message) : undefined) ||
+            translate("Не удалось выполнить действие. Попробуйте ещё раз."),
     );
   return payload;
 }
 export const statusName = (s: string) =>
   ({
-    not_started: "Не начал",
-    in_progress: "В процессе",
-    pending: "Ожидает проверки",
-    pending_review: "Ожидает проверки",
-    graded: "Проверено",
-    completed: "Проверено",
-    submitted: "Сдано",
-    draft: "В процессе",
+    not_started: translate("ui.not.started"),
+    in_progress: translate("ui.in.progress"),
+    pending: translate("ui.awaiting.reviewLabelLabelLabelLabel"),
+    pending_review: translate("ui.awaiting.reviewLabelLabelLabelLabel"),
+    graded: translate("ui.reviewedLabelLabelLabelLabel"),
+    completed: translate("ui.reviewedLabelLabelLabelLabel"),
+    submitted: translate("ui.submittedLabelLabelLabel"),
+    draft: translate("ui.in.progress"),
   })[s] || s;
 export const initials = (s: string) =>
   s

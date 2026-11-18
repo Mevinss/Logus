@@ -11,10 +11,13 @@
     "db:setup": "node --env-file-if-exists=.env.local scripts/setup.mjs",
     "test:api": "node scripts/test-api.mjs",
     "demo": "node --env-file-if-exists=.env.local scripts/example.mjs",
-    "test:cloud": "node --test scripts/test-cloud.mjs"
+    "test:cloud": "node --test scripts/test-cloud.mjs",
+    "test:authoring": "node --test tests/authoring.test.mjs"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
     "@vercel/blob": "^2.9.0",
+    "mammoth": "^1.13.0",
     "next": "^16.4.6",
     "pdfjs-dist": "^6.5.438",
     "qrcode": "^1.5.4",

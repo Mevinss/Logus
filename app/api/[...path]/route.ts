@@ -1,9 +1,16 @@
+import { profileDispatch } from "../../../lib/profile";
+import { calendarDispatch } from "../../../lib/calendar";
+import { retrieveContext } from "../../../lib/rag";
+import { defaultTestSettings, publishResults, settings, settleExpired } from "../../../lib/test-policy";
 import { readFile, writeFile } from "node:fs/promises";
 import { CloudStorageError, cloudStorage, readCloudPdf, stageCloudPdf, withRequestDatabase } from "../../../lib/server-cloud.mjs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import {
   extractPdf,
+  extractDocument,
+  generationOptions,
+  type GenerationOptions,
   generateQuestions,
   suggestGrade,
 } from "../../../lib/material";
@@ -72,10 +79,11 @@ async function generate(
   skill?: string,
   originalPrompt?: string,
   replacement?: Question,
+  owner?: string,
+  options?: GenerationOptions,
 ) {
-  const pages = selected(l).filter(
-    (p) => !replacement || p.id === replacement.sourceId,
-  );
+  const source = {...l, selectedPages: replacement ? [replacement.sourceId] : l.selectedPages};
+  const pages = owner ? retrieveContext(owner, source, [options?.topic,options?.focus,options?.prompt,skill].filter(Boolean).join(" ")) : selected(source);
   if (!pages.length || !pages.some((p) => p.text.trim()))
     fail(400, "Выберите страницы с текстом.");
   try {
@@ -85,6 +93,7 @@ async function generate(
     const questions = await generateQuestions(
       pages, skill, originalPrompt,
       replacement ? { type: replacement.type, maxPoints: replacement.maxPoints, otherPrompts } : undefined,
+      options ? {...options,owner,existingPrompts:options.existingPrompts || []} : owner ? {owner,legacy:true} : undefined,
     );
     if (replacement) {
       const candidate = questions[0];
@@ -100,6 +109,7 @@ async function generate(
     }
     return { questions, issues: questionIssues(questions, pages) };
   } catch (e) {
+    if (e instanceof ApiError) throw e;
     fail(
       503,
       e instanceof Error
@@ -165,10 +175,11 @@ async function dispatch(req: Request, parts: string[]) {
         ? f.teacher !== u.id &&
           !one("SELECT 1 FROM file_readers WHERE file=? AND teacher=?", k, u.id)
         : !one(
-            "SELECT r.id FROM assignments a JOIN runs r ON r.id=a.run WHERE a.student=? AND json_extract(r.body,'$.pdfUrl')=?",
+            "SELECT r.id FROM assignments a JOIN runs r ON r.id=a.run WHERE a.student=? AND (json_extract(r.body,'$.pdfUrl')=? OR EXISTS (SELECT 1 FROM json_each(r.body,'$.pages') p WHERE json_extract(p.value,'$.pdfUrl')=?))",
             u.id,
             "/api/files/" + k,
-          )
+            "/api/files/" + k,
+          ) && !one("SELECT 1 FROM calendar_events e JOIN students s ON s.grp=e.grp JOIN lessons l ON l.id=e.lesson WHERE s.id=? AND e.cancelled=0 AND e.run IS NULL AND (json_extract(l.body,'$.pdfUrl')=? OR EXISTS(SELECT 1 FROM json_each(l.body,'$.pages') p WHERE json_extract(p.value,'$.pdfUrl')=?))",u.id,"/api/files/"+k,"/api/files/"+k)
     )
       fail(404, "Файл не найден.");
     const content = cloudStorage() ? await readCloudPdf(f.id) : new Uint8Array(await readFile(
@@ -182,6 +193,12 @@ async function dispatch(req: Request, parts: string[]) {
         "X-Content-Type-Options": "nosniff",
       },
     });
+  }
+  if (resource === "profile" || resource === "calendar") {
+    const actor=session(req);
+    const response=resource==="profile"?await profileDispatch(req,parts,actor):await calendarDispatch(req,parts,actor,baseUrl(req));
+    if(response) return response;
+    fail(404,"Маршрут не найден.");
   }
   if (resource === "student") {
     const u = session(req, "student");
@@ -315,11 +332,21 @@ async function dispatch(req: Request, parts: string[]) {
         questions: [],
         selectedPages: [],
         updatedAt: "",
+        settings: { ...defaultTestSettings },
       };
       return saveLesson(editLesson(l, data), u.id);
     }
     let l = ownedLesson(u.id, k || "");
     if (is("GET", 2)) return l;
+    if (is("DELETE",2)) {
+      if(one("SELECT 1 FROM runs WHERE lesson=?",k)) fail(409,"Урок уже проводился. Архивируйте проведения, чтобы сохранить историю.");
+      if(one("SELECT 1 FROM calendar_events WHERE lesson=?",k)) fail(409,"Урок связан с расписанием. Сначала удалите привязку материала в событиях.");
+      transaction(()=>{
+        run("DELETE FROM material_chunks WHERE owner=? AND lesson=?",u.id,k);
+        run("DELETE FROM lessons WHERE id=? AND teacher=?",k,u.id);
+      });
+      return {ok:true};
+    }
     if (is("PATCH", 2)) {
       const data = await input(req);
       return saveLesson(editLesson(ownedLesson(u.id, k), data), u.id);
@@ -344,10 +371,10 @@ async function dispatch(req: Request, parts: string[]) {
       )
         fail(400, "Выберите коллегу, который ведёт этот класс.");
       return transaction(() => {
-        if (l.pdfUrl)
+        for (const pdf of new Set([l.pdfUrl,...l.pages.map(p=>p.pdfUrl)].filter(Boolean)))
           run(
             "INSERT OR IGNORE INTO file_readers VALUES(?,?)",
-            l.pdfUrl.split("/").pop()!,
+            pdf!.split("/").pop()!,
             recipient.id,
           );
         return saveLesson(
@@ -356,14 +383,23 @@ async function dispatch(req: Request, parts: string[]) {
         );
       });
     }
+    if (action === "search" && is("POST",3)) {
+      const data=await input(req), query=str(data.query||"",2000);
+      return {fragments:retrieveContext(u.id,l,query).map(fragment=>({...l.pages.find(p=>p.id===fragment.id),...fragment}))};
+    }
     if (action === "generate" && is("POST", 3)) {
       const data = await input(req);
-      if (!("replaceQuestionId" in data)) return generate(l);
+      let options:GenerationOptions|undefined;
+      if (data.options || "count" in data) {
+        try { options = generationOptions(data.options || data); } catch(e) { fail(400,(e as Error).message); }
+      }
+      if (options && data.mode === "append") options.existingPrompts=l.questions.map(q=>q.prompt);
+      if (!("replaceQuestionId" in data)) return generate(l,undefined,undefined,undefined,u.id,options);
       const questionId = required(data.replaceQuestionId);
       const target = found(l.questions.find(q => q.id === questionId));
       if (!target.prompt?.trim() || !target.skill?.trim())
         fail(400, "Укажите исходную формулировку и навык для замены.");
-      return generate(l, target.skill, target.prompt, target);
+      return generate(l, target.skill, target.prompt, target,u.id,options);
     }
     if (action === "publish" && is("POST", 3)) {
       const data = await input(req);
@@ -373,51 +409,61 @@ async function dispatch(req: Request, parts: string[]) {
         base,
       );
     }
-    if (action === "pdf" && is("POST", 3)) {
-      const maxMiB = pdfLimitMiB();
-      const limit = maxMiB * 1024 * 1024;
-      const limitMessage = `Максимальный размер PDF — ${maxMiB} МБ.`;
-      if (Number(req.headers.get("content-length")) > limit + 65536)
-        fail(413, limitMessage);
-      const form = await req.formData(),
-        file = form.get("file");
-      if (!file || typeof file === "string") fail(400, "Выберите PDF.");
-      if (file.size > limit) fail(413, limitMessage);
-      const bytes = Buffer.from(await file.arrayBuffer());
-      if (!bytes.subarray(0, 1024).includes(Buffer.from("%PDF-")))
-        fail(400, "Не удалось распознать PDF.");
-      let texts: string[] = [];
-      try {
-        texts = await extractPdf(bytes);
-      } catch {
-        /* Original stays available for manual transcription. */
+    if (["pdf","materials"].includes(action) && is("POST",3)) {
+      const limit=pdfLimitMiB()*1024*1024;
+      if(Number(req.headers.get("content-length"))>limit+65536) fail(413,"Превышен размер загрузки.");
+      const form=await req.formData();
+      const uploads=[...form.getAll("file"),...form.getAll("files")];
+      if(!uploads.length || uploads.length>10 || uploads.some(f=>typeof f==="string")) fail(400,"Выберите от 1 до 10 файлов.");
+      const files=uploads as File[];
+      if(files.reduce((n,f)=>n+f.size,0)>limit) fail(413,"Превышен размер загрузки.");
+      const processed: {name:string;bytes:Buffer;texts:string[];pdf:boolean;id:string}[]=[];
+      for(const file of files) {
+        const bytes=Buffer.from(await file.arrayBuffer());
+        if(/\.pdf$/i.test(file.name) && !bytes.subarray(0,1024).includes(Buffer.from("%PDF-"))) fail(400,"Не удалось распознать PDF.");
+        let texts:string[]=[];
+        try { texts=await extractDocument(bytes,file.name); }
+        catch(error) {
+          if(!/\.pdf$/i.test(file.name)) fail(400,(error as Error).message);
+        }
+        if(texts.join("").length>2000000) fail(413,"Разделите материал на несколько уроков.");
+        processed.push({name:file.name,bytes,texts,pdf:/\.pdf$/i.test(file.name),id:id()});
       }
-      if (texts.join("").length > 4000000)
-        fail(413, "Загрузите PDF меньшего объёма.");
-      const key = id();
-      if (cloudStorage()) stageCloudPdf(key, bytes);
-      else await writeFile(
-        /* turbopackIgnore: true */ join(storage().dir, "files", key + ".pdf"),
-        bytes,
-        { flag: "wx" },
-      );
-      l = ownedLesson(u.id, k);
-      run("INSERT INTO files VALUES(?,?)", key, u.id);
-      l.pdfUrl = "/api/files/" + key;
-      l.pages = texts.map((text, i) => ({ id: i + 1, text }));
-      l.selectedPages = l.pages.filter((p) => p.text.trim()).map((p) => p.id);
-      l.questions = [];
-      return {
-        ...saveLesson(l, u.id),
-        ...(!l.selectedPages.length
-          ? { warning: "Текст не извлечён. Вставьте текст материала вручную." }
-          : {}),
-      };
+      l=ownedLesson(u.id,k);
+      const append=action==="materials" || form.get("append")==="true";
+      const pages=append?[...l.pages]:[];
+      if(pages.reduce((n,p)=>n+p.text.length,0)+processed.reduce((n,f)=>n+f.texts.join("").length,0)>4000000) fail(413,"Разделите материал на несколько уроков.");
+      const grants:string[]=[];
+      for(const file of processed) {
+        const pdfUrl=file.pdf?"/api/files/"+file.id:null;
+        if(file.pdf) {
+          if(cloudStorage()) stageCloudPdf(file.id,file.bytes);
+          else await writeFile(/* turbopackIgnore: true */ join(storage().dir,"files",file.id+".pdf"),file.bytes,{flag:"wx"});
+          grants.push(file.id);
+        }
+        const offset=pages.reduce((m,p)=>Math.max(m,p.id),0);
+        (file.texts.length?file.texts:[""]).forEach((text,i)=>pages.push({id:offset+i+1,text,documentId:file.id,documentName:file.name,sourcePage:i+1,pdfUrl}));
+      }
+      return transaction(()=>{
+        for(const key of grants) run("INSERT INTO files VALUES(?,?)",key,u.id);
+        l.pages=pages;l.selectedPages=pages.filter(p=>p.text.trim()).map(p=>p.id);
+        l.pdfUrl=pages.find(p=>p.pdfUrl)?.pdfUrl || null;
+        if(!append) l.questions=[];
+        return {...saveLesson(l,u.id),...(processed.some(f=>!f.texts.some(t=>t.trim()))?{warning:"Текст не извлечён. Для скана требуется OCR. Вставьте текст материала вручную."}:{})};
+      });
     }
+  }
+
+  if (resource === "runs" && is("POST",3) && ["results","archive"].includes(action)) {
+    ownedRun(u.id,k);
+    if(action==="results") return publishResults(k);
+    run("INSERT OR IGNORE INTO run_archive VALUES(?,?)",k,Date.now());
+    return {ok:true};
   }
   if (resource === "runs" && is("GET", 3) && action === "classroom") {
     const r = ownedRun(u.id, k),
       lesson: Lesson = JSON.parse(r.body);
+    settleExpired(undefined,k);
     const rows = all(
       "SELECT a.student AS id,s.name,a.status,a.answers,a.points,o.run IS NOT NULL AS opened,v.run IS NOT NULL AS entered FROM assignments a JOIN students s ON s.id=a.student LEFT JOIN opened_lessons o ON o.run=a.run AND o.student=a.student LEFT JOIN cabinet_visits v ON v.run=a.run AND v.student=a.student WHERE a.run=? ORDER BY s.name,s.id",
       k,
@@ -484,7 +530,7 @@ async function dispatch(req: Request, parts: string[]) {
           ),
         );
       try {
-        return await suggestGrade(q, String(detail.answers[q.id] || ""));
+        return await suggestGrade(q, String(detail.answers[q.id] || ""),u.id);
       } catch (e) {
         fail(
           503,
@@ -506,7 +552,7 @@ async function dispatch(req: Request, parts: string[]) {
     const q = found(l.questions.find((q) => q.id === data.questionId));
     l.pages = l.pages.filter((p) => p.id === q.sourceId);
     l.selectedPages = l.pages.map((p) => p.id);
-    if (action === "warmup-preview") return generate(l, q.skill, q.prompt);
+    if (action === "warmup-preview") return generate(l, q.skill, q.prompt,undefined,u.id);
     if (
       !Array.isArray(data.questions) ||
       data.questions.length < 1 ||
@@ -517,6 +563,7 @@ async function dispatch(req: Request, parts: string[]) {
     l.title = data.title ? required(data.title, 240) : "Разминка · " + q.skill;
     l.instruction = "Повторите материал и выполните короткую разминку.";
     l.questions = data.questions;
+    l.settings = {...settings(l),durationMinutes:null,opensAt:null,dueAt:null};
     return issueRun(
       l,
       ownedGroup(u.id, r.grp),
@@ -557,4 +604,4 @@ async function handle(req: Request, ctx: Context) {
     );
   }
 }
-export { handle as GET, handle as POST, handle as PATCH };
+export { handle as GET, handle as POST, handle as PATCH, handle as DELETE };

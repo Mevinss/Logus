@@ -1,29 +1,14 @@
 "use client";
+import { translate, formatDate } from "./I18n";
 import React, { useCallback, useEffect, useState } from "react";
 import Brand from "./Brand";
+import Calendar from "./Calendar";
+import {useI18n} from "./I18n";
 import Editor from "./TeacherEditor";
 import GroupView, { CopyLink, WorkView } from "./TeacherGroup";
 import { AnyRow, Empty, Icon, Overlay, api, initials } from "./teacher-ui";
 import "./teacher.css";
 
-function DeskArt() {
-  return (
-    <div className="t-desk" aria-hidden="true">
-      <div className="t-gridpaper" />
-      <div className="t-sheet shadow" />
-      <div className="t-sheet main">
-        <div className="t-sheet-top" />
-        <div className="t-diagram">
-          <i />
-          <b />
-          <em />
-        </div>
-        <div className="t-sheet-lines" />
-      </div>
-      <div className="t-pencil" />
-    </div>
-  );
-}
 function countWord(n: number, forms: string[]) {
   const a = Math.abs(n) % 100,
     b = a % 10;
@@ -42,6 +27,7 @@ export default function Teacher({
   name: string;
   onLogout: () => void;
 }) {
+  const {locale,timeZone,t}=useI18n();
   const [data, setData] = useState<AnyRow | null>(null),
     [nav, setSection] = useState("Сегодня"),
     [group, setGroup] = useState(""),
@@ -123,7 +109,8 @@ export default function Teacher({
     metric = data?.repeat;
   const startLesson = () => open("lesson"),
     startGroup = () => open("group"),
-    today = new Intl.DateTimeFormat("ru-RU", {
+    today = new Intl.DateTimeFormat(locale, {
+      timeZone,
       weekday: "long",
       day: "numeric",
       month: "long",
@@ -135,31 +122,31 @@ export default function Teacher({
           <button
             className="t-brand"
             onClick={() => navigate("Сегодня")}
-            aria-label="Logus · Сегодня"
+            aria-label={translate("ui.logus.today")}
           >
             <Brand />
           </button>
-          <nav aria-label="Разделы кабинета">
+          <nav aria-label={translate("ui.workspace.navigation")}>
             {[
               ["Сегодня", "today"],
               ["Мои уроки", "book"],
-              ["Группы", "group"],
+              ["Группы", "group"], ["calendar", "today"],
             ].map(([s, n]) => (
               <button
                 aria-current={nav === s ? "page" : undefined}
-                key={s}
+                key={s === "calendar" ? t("calendar.title") : translate(s)}
                 className={nav === s ? "active" : ""}
                 onClick={() => navigate(s)}
               >
                 <Icon n={n} />
-                {s}
+                {s === "calendar" ? t("calendar.title") : translate(s)}
               </button>
             ))}
           </nav>
           <div className="t-account">
             <button
               className="t-account-btn"
-              aria-label="Меню профиля"
+              aria-label={translate("ui.profile.menu")}
               aria-expanded={menu}
               onClick={() => setMenuOpen(!menu)}
             >
@@ -170,9 +157,7 @@ export default function Teacher({
             {menu && (
               <div className="t-dropdown">
                 <button onClick={onLogout}>
-                  <Icon n="logout" />
-                  Выйти
-                </button>
+                  <Icon n="logout" />{translate("ui.sign.out")}</button>
               </div>
             )}
           </div>
@@ -182,18 +167,16 @@ export default function Teacher({
         {!data ? (
           <section className="t-card">
             <h2>
-              {err ? "Не удалось загрузить кабинет" : "Загрузка кабинета…"}
+              {err ? translate("ui.could.not.load.workspace") : translate("ui.loading.workspace")}
             </h2>
             {err && (
               <>
-                <p>{err}</p>
-                <button className="t-btn" onClick={load}>
-                  Повторить
-                </button>
+                <p>{translate(err)}</p>
+                <button className="t-btn" onClick={load}>{translate("ui.retry")}</button>
               </>
             )}
           </section>
-        ) : edit ? (
+        ) : nav === "calendar" ? (<Calendar role="teacher" onOpenRun={(runId,groupId)=>visitGroup(groupId,undefined,runId)}/>) : edit ? (
           <Editor
             key={edit.id}
             initial={edit}
@@ -220,7 +203,7 @@ export default function Teacher({
           <>
             {err && !modal && !repeat && (
               <p className="t-error" role="alert">
-                {err}
+                {translate(err)}
               </p>
             )}
             {nav === "Сегодня" ? (
@@ -228,35 +211,30 @@ export default function Teacher({
                 <header className="t-heading">
                   <div>
                     <div className="t-over">
-                      <span className="t-dash" />
-                      Кабинет преподавателя
-                    </div>
-                    <h1>Сегодня</h1>
+                      <span className="t-dash" />{translate("ui.teacher.workspaceLabel")}</div>
+                    <h1>{translate("ui.today")}</h1>
                     <p className="t-date">{today}</p>
                   </div>
                   <button className="t-primary" onClick={startLesson}>
-                    <Icon n="plus" />
-                    Создать урок
-                  </button>
+                    <Icon n="plus" />{translate("ui.create.lesson")}</button>
                 </header>
                 <section className="t-summary">
                   <div className="t-over">
-                    <span className="t-dot" /> Обзор занятий
-                  </div>
-                  <h2>Ваш учебный день</h2>
+                    <span className="t-dot" />{translate("ui.lesson.overview")}</div>
+                  <h2>{translate("ui.your.teaching.day")}</h2>
                   <div className="t-summary-nums">
                     {[
-                      [runs.length, "Занятий"],
-                      [groups.length, "Групп"],
-                      [pending.length, "На проверке"],
+                      [runs.length, translate("ui.lessons")],
+                      [groups.length, translate("ui.classesLabel")],
+                      [pending.length, translate("ui.awaiting.review")],
                     ].map(([n, s]) => (
-                      <div key={s}>
+                      <div key={String(s)}>
                         <strong>{n}</strong>
                         <span>{s}</span>
                       </div>
                     ))}
                   </div>
-                  <DeskArt />
+
                 </section>
                 <div className="t-dash-grid">
                   <section className="t-panel">
@@ -264,7 +242,7 @@ export default function Teacher({
                       <span className="t-iconbox">
                         <Icon n="book" />
                       </span>
-                      <h2>Активные занятия</h2>
+                      <h2>{translate("ui.active.lessons")}</h2>
                     </div>
                     {runs.length ? (
                       runs.slice(0, 4).map((r, i) => (
@@ -282,7 +260,7 @@ export default function Teacher({
                           <span>
                             <b>{r.title}</b>
                             <small>
-                              {r.groupName} · Сдали {r.submitted} из{" "}
+                              {r.groupName}{" "}{translate("ui.submitted")}{" "}{r.submitted}{" "}{translate("ui.of")}{" "}{" "}
                               {r.assigned} ({r.completionPercent} %)
                             </small>
                           </span>
@@ -290,10 +268,10 @@ export default function Teacher({
                         </button>
                       ))
                     ) : (
-                      <Empty title="Занятий пока нет" icon="book">
+                      <Empty title={translate("ui.no.lessons.yet")} icon="book">
                         {groups.length
-                          ? "Создайте урок и назначьте его своей группе."
-                          : "Создайте группу, чтобы пригласить учеников и провести первое занятие."}
+                          ? translate("ui.create.a.lesson.and.assign.it.to.your.class")
+                          : translate("ui.create.a.class.to.invite.students.and.run.your.first.lesson")}
                       </Empty>
                     )}
                     {!runs.length && (
@@ -301,7 +279,7 @@ export default function Teacher({
                         className="t-textbtn"
                         onClick={groups.length ? startLesson : startGroup}
                       >
-                        {groups.length ? "Создать урок" : "Создать группу"}
+                        {groups.length ? translate("ui.create.lesson") : translate("ui.create.class")}
                         <Icon n="arrow" size={16} />
                       </button>
                     )}
@@ -311,7 +289,7 @@ export default function Teacher({
                       <span className="t-iconbox rust">
                         <Icon n="layers" />
                       </span>
-                      <h2>Что повторить</h2>
+                      <h2>{translate("ui.what.to.review")}</h2>
                     </div>
                     {metric ? (
                       <>
@@ -319,18 +297,18 @@ export default function Teacher({
                         <h3>{metric.prompt}</h3>
                         <p>
                           {metric.wrongOption
-                            ? "Вариант «" +
+                            ? translate("Вариант «") +
                               metric.wrongOption +
-                              "» выбрали " +
+                              translate("» выбрали") + " " +
                               metric.wrongCount +
-                              " из " +
+                              " " + translate("из") + " " +
                               metric.answered +
-                              " ответивших."
-                            : "Полный балл: " +
+                              " " + translate("ответивших.")
+                            : translate("Полный балл:") + " " +
                               metric.correct +
-                              " из " +
+                              " " + translate("из") + " " +
                               metric.assessed +
-                              " проверенных."}
+                              " " + translate("проверенных.")}
                         </p>
                         <button
                           className="t-textbtn"
@@ -340,17 +318,13 @@ export default function Teacher({
                               metric,
                             )
                           }
-                        >
-                          Открыть вопрос <Icon n="arrow" size={16} />
+                        >{translate("ui.open.question")}<Icon n="arrow" size={16} />
                         </button>
                       </>
                     ) : (
                       <>
-                        <h3>Пока нет ответов для разбора</h3>
-                        <p>
-                          Когда ученики сдадут работу, здесь появится вопрос для
-                          повторения и ответы группы.
-                        </p>
+                        <h3>{translate("ui.no.responses.to.review.yet")}</h3>
+                        <p>{translate("ui.after.students.submit.a.review.question.and.class.responses.will.appear.here")}</p>
                       </>
                     )}
                   </section>
@@ -359,7 +333,7 @@ export default function Teacher({
                       <span className="t-iconbox tan">
                         <Icon n="pen" />
                       </span>
-                      <h2>Ожидают проверки</h2>
+                      <h2>{translate("ui.awaiting.reviewLabel")}</h2>
                       <span className="t-count">{pending.length}</span>
                     </div>
                     {pending.length ? (
@@ -373,13 +347,11 @@ export default function Teacher({
                             <b>{w.studentName}</b>
                             <small>{w.title}</small>
                           </span>
-                          <span>Проверить →</span>
+                          <span>{translate("ui.review")}</span>
                         </button>
                       ))
                     ) : (
-                      <p className="t-muted">
-                        Открытых ответов на проверке пока нет.
-                      </p>
+                      <p className="t-muted">{translate("ui.no.open.responses.awaiting.review")}</p>
                     )}
                   </section>
                 </div>
@@ -389,25 +361,23 @@ export default function Teacher({
                 <header className="t-heading">
                   <div>
                     <div className="t-over">
-                      <span className="t-dash" />
-                      Кабинет преподавателя
-                    </div>
-                    <h1>{nav}</h1>
+                      <span className="t-dash" />{translate("ui.teacher.workspaceLabel")}</div>
+                    <h1>{translate(nav)}</h1>
                     <p>
                       {nav === "Группы"
                         ? groups.length +
                           " " +
                           countWord(groups.length, [
-                            "группа",
-                            "группы",
-                            "групп",
+                            translate("группа"),
+                            translate("группы"),
+                            translate("групп"),
                           ])
                         : lessons.length +
                           " " +
                           countWord(lessons.length, [
-                            "урок",
-                            "урока",
-                            "уроков",
+                            translate("урок"),
+                            translate("уроков"),
+                            translate("уроков"),
                           ])}
                     </p>
                   </div>
@@ -416,15 +386,15 @@ export default function Teacher({
                     onClick={nav === "Группы" ? startGroup : startLesson}
                   >
                     <Icon n="plus" />
-                    {nav === "Группы" ? "Создать группу" : "Создать урок"}
+                    {nav === "Группы" ? translate("ui.create.class") : translate("ui.create.lesson")}
                   </button>
                 </header>
                 {!!(nav === "Группы" ? groups : lessons).length && (
                   <label className="t-search">
                     <Icon n="search" />
                     <input
-                      aria-label="Поиск по названию"
-                      placeholder="Поиск по названию"
+                      aria-label={translate("ui.search.by.title")}
+                      placeholder={translate("ui.search.by.title")}
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                     />
@@ -452,22 +422,17 @@ export default function Teacher({
                           <span>
                             {g.students.length}{" "}
                             {countWord(g.students.length, [
-                              "ученик",
-                              "ученика",
-                              "учеников",
+                              translate("ui.student"),
+                              translate("ui.students"),
+                              translate("ui.studentsLabel"),
                             ])}
                           </span>
-                          <div className="t-group-foot">
-                            Открыть группу
-                            <Icon n="arrow" />
+                          <div className="t-group-foot">{translate("ui.open.class")}<Icon n="arrow" />
                           </div>
                         </button>
                       ))}
                     {groups.length === 0 && (
-                      <Empty title="Создайте первую группу" icon="group">
-                        Добавьте учеников по имени и отправьте им индивидуальные
-                        приглашения.
-                      </Empty>
+                      <Empty title={translate("ui.create.your.first.class")} icon="group">{translate("ui.add.students.by.name.and.send.personal.invitations")}</Empty>
                     )}
                   </div>
                 ) : (
@@ -488,14 +453,11 @@ export default function Teacher({
                             <small className="t-muted">
                               {l.questions.length}{" "}
                               {countWord(l.questions.length, [
-                                "вопрос",
-                                "вопроса",
-                                "вопросов",
-                              ])}{" "}
-                              · Обновлено{" "}
-                              {new Date(l.updatedAt).toLocaleDateString(
-                                "ru-RU",
-                              )}
+                                translate("ui.question"),
+                                translate("ui.questions"),
+                                translate("ui.questionsLabel"),
+                              ])}{" "}{translate("ui.updated")}{" "}{" "}
+                              {formatDate(l.updatedAt)}
                             </small>
                           </div>
                           <div className="t-actions t-end">
@@ -506,9 +468,7 @@ export default function Teacher({
                                 window.scrollTo(0, 0);
                               }}
                             >
-                              <Icon n="pen" size={15} />
-                              Редактировать
-                            </button>
+                              <Icon n="pen" size={15} />{translate("ui.edit")}</button>
                             <button
                               className="t-textbtn"
                               onClick={() => {
@@ -516,17 +476,12 @@ export default function Teacher({
                                 setGroupId(groups[0]?.id || "");
                                 setError("");
                               }}
-                            >
-                              Провести в другой группе
-                            </button>
+                            >{translate("ui.assign.to.another.class")}</button>
                           </div>
                         </article>
                       ))}
                     {!lessons.length && (
-                      <Empty title="Создайте первый урок" icon="book">
-                        Добавьте PDF или вставьте текст, чтобы подготовить
-                        вопросы.
-                      </Empty>
+                      <Empty title={translate("ui.create.your.first.lesson")} icon="book">{translate("ui.upload.a.pdf.or.paste.text.to.prepare.questions")}</Empty>
                     )}
                   </div>
                 )}
@@ -536,9 +491,7 @@ export default function Teacher({
                       .toLocaleLowerCase()
                       .includes(query.toLocaleLowerCase()),
                   ) && (
-                    <p className="t-muted">
-                      По вашему запросу ничего не найдено.
-                    </p>
+                    <p className="t-muted">{translate("ui.no.matching.results")}</p>
                   )}
               </>
             )}
@@ -547,7 +500,7 @@ export default function Teacher({
       </main>
       {modal && (
         <Overlay
-          title={modal === "group" ? "Создать группу" : "Создать урок"}
+          title={modal === "group" ? translate("ui.create.class") : translate("ui.create.lesson")}
           close={() => setModal("")}
         >
           <form
@@ -555,7 +508,7 @@ export default function Teacher({
             onSubmit={(e) => {
               e.preventDefault();
               doIt(async () => {
-                if (!input.trim()) throw Error("Введите название.");
+                if (!input.trim()) throw Error(translate("ui.enter.a.title"));
                 const g = modal === "group";
                 const d = await api(
                   g ? "/api/groups" : "/api/lessons",
@@ -574,7 +527,7 @@ export default function Teacher({
           >
             <label className="t-field">
               <span>
-                {modal === "group" ? "Название группы" : "Название урока"}
+                {modal === "group" ? translate("ui.class.name") : translate("ui.lesson.title")}
               </span>
               <input
                 required
@@ -583,28 +536,28 @@ export default function Teacher({
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={
                   modal === "group"
-                    ? "Например, 8 «Б»"
-                    : "Введите название урока"
+                    ? translate("ui.for.example.class.8b")
+                    : translate("ui.enter.lesson.title")
                 }
               />
             </label>
-            {err && <p className="t-error">{err}</p>}
+            {err && <p className="t-error">{translate(err)}</p>}
             <button className="t-primary" disabled={busy}>
               {busy
-                ? "Создание…"
+                ? translate("ui.creating")
                 : modal === "group"
-                  ? "Создать группу"
-                  : "Перейти в редактор"}
+                  ? translate("ui.create.class")
+                  : translate("ui.open.editor")}
             </button>
           </form>
         </Overlay>
       )}
       {repeat && (
-        <Overlay title="Провести в другой группе" close={() => setRepeat(null)}>
+        <Overlay title={translate("ui.assign.to.another.class")} close={() => setRepeat(null)}>
           <h3>{repeat.title}</h3>
           {groups.length ? (
             <label className="t-field">
-              <span>Группа</span>
+              <span>{translate("ui.classLabel")}</span>
               <select value={gid} onChange={(e) => setGroupId(e.target.value)}>
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>
@@ -614,9 +567,9 @@ export default function Teacher({
               </select>
             </label>
           ) : (
-            <p>Сначала создайте группу.</p>
+            <p>{translate("ui.create.a.class.first")}</p>
           )}
-          {err && <p className="t-error">{err}</p>}
+          {err && <p className="t-error">{translate(err)}</p>}
           <button
             className="t-primary"
             disabled={busy || !gid}
@@ -631,31 +584,22 @@ export default function Teacher({
                 published(r);
               })
             }
-          >
-            Назначить урок
-          </button>
+          >{translate("ui.assign.lesson")}</button>
         </Overlay>
       )}
       {share && (
-        <Overlay title="Урок опубликован" close={() => setShare(null)}>
+        <Overlay title={translate("ui.lesson.published")} close={() => setShare(null)}>
           <h3>{share.title}</h3>
-          <p>
-            Группа «{share.groupName}». Отправьте ссылку на занятие ученикам,
-            которые уже вошли в кабинет.
-          </p>
+          <p>{translate("ui.classLabelLabel")}{" "}{share.groupName}{" "}{translate("ui.share.the.lesson.link.with.students.who.have.already.signed.in")}</p>
           <CopyLink url={share.url} />
-          <p className="t-muted">
-            Новому ученику сначала отправьте его индивидуальное приглашение из
-            состава группы.
-          </p>
+          <p className="t-muted">{translate("ui.send.new.students.their.personal.invitation.from.the.class.roster.first")}</p>
           <button
             className="t-btn"
             onClick={() => {
               visitGroup(share.groupId);
               setShare(null);
             }}
-          >
-            Открыть группу <Icon n="arrow" size={16} />
+          >{translate("ui.open.class")}<Icon n="arrow" size={16} />
           </button>
         </Overlay>
       )}

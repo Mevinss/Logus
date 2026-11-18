@@ -1,8 +1,18 @@
 "use client";
 import React, { useState } from "react";
+import { Temporal } from "@js-temporal/polyfill";
+import { useI18n, translate } from "./I18n";
+import { authoringLegacy, authoringMessages } from "./authoring-messages";
 import { AnyRow, Icon, Overlay, api } from "./teacher-ui";
 
-export type Page = { id: number; text: string };
+export type Page = {
+  id: number;
+  text: string;
+  documentId?: string;
+  documentName?: string;
+  sourcePage?: number;
+  pdfUrl?: string;
+};
 export type Question = {
   id: string;
   type: "choice" | "open";
@@ -14,6 +24,8 @@ export type Question = {
   skill: string;
   sourceId: number;
   quote: string;
+  explanation?: string;
+  optionExplanations?: string[];
 };
 export function blank(p?: Page, skill = ""): Question {
   return {
@@ -26,6 +38,8 @@ export function blank(p?: Page, skill = ""): Question {
     maxPoints: 1,
     skill,
     sourceId: p?.id || 1,
+    explanation: "",
+    optionExplanations: ["", ""],
     quote: "",
   };
 }
@@ -33,37 +47,47 @@ function label(text: string, input: React.ReactNode) {
   return (
     <label className="t-field">
       <span>{text}</span>
-      {input}
+      {React.isValidElement(input)
+        ? React.cloneElement(
+            input as React.ReactElement<{ "aria-label"?: string }>,
+            { "aria-label": text },
+          )
+        : input}
     </label>
   );
 }
-export function validate(qs: Question[], pages: Page[], selected: number[]) {
-  if (!qs.length) throw Error("Добавьте хотя бы один вопрос.");
+export function validate(
+  qs: Question[],
+  pages: Page[],
+  selected: number[],
+  tr: (v: string) => string = translate,
+) {
+  if (!qs.length) throw Error(tr("authoring.legacy.016"));
   for (const [i, q] of qs.entries()) {
     const issue = !q.prompt.trim()
-      ? "Введите формулировку."
+      ? tr("authoring.legacy.006")
       : !q.skill.trim()
-        ? "Укажите навык."
+        ? tr("authoring.legacy.048")
         : !Number.isInteger(q.maxPoints) || q.maxPoints < 1
-          ? "Укажите целое число баллов больше нуля."
+          ? tr("authoring.legacy.049")
           : q.type === "choice" &&
               (q.options.length < 2 ||
                 q.options.some((o) => !o.trim()) ||
                 q.correctIndex === null ||
                 !q.options[q.correctIndex])
-            ? "Заполните варианты и отметьте правильный ответ."
+            ? tr("authoring.legacy.017")
             : q.type === "open" && !q.criterion.trim()
-              ? "Добавьте критерий проверки."
+              ? tr("authoring.legacy.015")
               : !selected.includes(q.sourceId)
-                ? "Выберите источник из отмеченных страниц."
+                ? tr("authoring.legacy.011")
                 : !q.quote.trim() ||
                     !pages
                       .find((p) => p.id === q.sourceId)
                       ?.text.replace(/\s+/g, " ")
                       .includes(q.quote.trim().replace(/\s+/g, " "))
-                  ? "Вставьте точную цитату из источника."
+                  ? tr("authoring.legacy.010")
                   : "";
-    if (issue) throw Error("Вопрос " + (i + 1) + ". " + issue);
+    if (issue) throw Error(tr("authoring.legacy.007") + (i + 1) + ". " + issue);
   }
 }
 export function Source({
@@ -75,28 +99,37 @@ export function Source({
   pdf?: string;
   close: () => void;
 }) {
+  const { language } = useI18n();
+  const tr = (v: string) => authoringLegacy[language][v] || v;
+  pdf = p.documentId ? p.pdfUrl || undefined : pdf;
+  const sourcePage = p.sourcePage || p.id;
   return (
-    <Overlay title={(pdf ? "Страница " : "Фрагмент ") + p.id} close={close}>
+    <Overlay
+      title={
+        (p.documentName ? p.documentName + " · " : "") +
+        (pdf ? tr("authoring.legacy.041") : tr("authoring.legacy.052")) +
+        sourcePage
+      }
+      close={close}
+    >
       {pdf && (
         <>
           <a
             target="_blank"
             rel="noreferrer"
             className="t-link"
-            href={pdf + "#page=" + p.id}
+            href={pdf + "#page=" + sourcePage}
           >
-            Открыть оригинал PDF ↗
+            {tr("authoring.legacy.073")}
           </a>
           <iframe
-            title={"Страница " + p.id}
-            src={pdf + "#page=" + p.id}
+            title={tr("authoring.legacy.041") + sourcePage}
+            src={pdf + "#page=" + sourcePage}
             className="t-pdf"
           />
         </>
       )}
-      <p className="t-source-text">
-        {p.text || "На этой странице нет извлечённого текста."}
-      </p>
+      <p className="t-source-text">{p.text || tr("authoring.legacy.024")}</p>
     </Overlay>
   );
 }
@@ -110,6 +143,8 @@ export function QuestionEdit({
   replace,
   fixedSkill,
   fixedType,
+  moveUp,
+  moveDown,
 }: {
   q: Question;
   i: number;
@@ -120,7 +155,12 @@ export function QuestionEdit({
   replace?: () => void;
   fixedSkill?: boolean;
   fixedType?: boolean;
+  moveUp?: () => void;
+  moveDown?: () => void;
 }) {
+  const { language, timeZone } = useI18n();
+  const a = authoringMessages[language];
+  const tr = (v: string) => authoringLegacy[language][v] || v;
   const [source, setSource] = useState(false);
   const page = pages.find((p) => p.id === q.sourceId);
   const patch = (v: Partial<Question>) => change({ ...q, ...v });
@@ -128,18 +168,38 @@ export function QuestionEdit({
     <article className="t-question">
       <div className="t-row">
         <strong className="t-qnum">
-          Вопрос {String(i + 1).padStart(2, "0")}
+          {tr("authoring.legacy.007")} {String(i + 1).padStart(2, "0")}
         </strong>
+        {moveUp && (
+          <button
+            type="button"
+            className="t-textbtn"
+            aria-label={a.up}
+            onClick={moveUp}
+          >
+            ↑
+          </button>
+        )}
+        {moveDown && (
+          <button
+            type="button"
+            className="t-textbtn"
+            aria-label={a.down}
+            onClick={moveDown}
+          >
+            ↓
+          </button>
+        )}
         {remove && (
           <button type="button" className="t-textbtn" onClick={remove}>
-            Удалить
+            {tr("authoring.legacy.080")}
           </button>
         )}
       </div>
       <div className="t-qgrid">
         <div className="t-stack">
           {label(
-            "Тип вопроса",
+            tr("authoring.legacy.045"),
             <select
               value={q.type}
               disabled={fixedType}
@@ -148,15 +208,16 @@ export function QuestionEdit({
                   type: e.target.value as Question["type"],
                   options: e.target.value === "choice" ? ["", ""] : [],
                   correctIndex: null,
+                  optionExplanations: [],
                 })
               }
             >
-              <option value="choice">Один правильный ответ</option>
-              <option value="open">Короткий открытый ответ</option>
+              <option value="choice">{tr("authoring.legacy.069")}</option>
+              <option value="open">{tr("authoring.legacy.065")}</option>
             </select>,
           )}
           {label(
-            "Формулировка",
+            tr("authoring.legacy.050"),
             <textarea
               rows={2}
               value={q.prompt}
@@ -165,18 +226,18 @@ export function QuestionEdit({
           )}
           {q.type === "choice" ? (
             <fieldset className="t-options">
-              <legend>Варианты · отметьте правильный</legend>
+              <legend>{tr("authoring.legacy.058")}</legend>
               {q.options.map((v, j) => (
                 <div className="t-opt" key={j}>
                   <input
                     type="radio"
                     name={"key-" + q.id}
                     checked={q.correctIndex === j}
-                    aria-label={"Правильный вариант " + (j + 1)}
+                    aria-label={tr("authoring.legacy.028") + (j + 1)}
                     onChange={() => patch({ correctIndex: j })}
                   />
                   <input
-                    aria-label={"Вариант " + (j + 1)}
+                    aria-label={tr("authoring.legacy.003") + (j + 1)}
                     value={v}
                     onChange={(e) =>
                       patch({
@@ -190,10 +251,13 @@ export function QuestionEdit({
                     <button
                       type="button"
                       className="t-iconbtn"
-                      aria-label={"Удалить вариант " + (j + 1)}
+                      aria-label={tr("authoring.legacy.047") + (j + 1)}
                       onClick={() =>
                         patch({
                           options: q.options.filter((_, k) => k !== j),
+                          optionExplanations: q.optionExplanations?.filter(
+                            (_, k) => k !== j,
+                          ),
                           correctIndex:
                             q.correctIndex === null || q.correctIndex === j
                               ? null
@@ -213,21 +277,47 @@ export function QuestionEdit({
                 className="t-textbtn"
                 onClick={() => patch({ options: [...q.options, ""] })}
               >
-                + Вариант
+                {tr("authoring.legacy.057")}
               </button>
             </fieldset>
           ) : (
             label(
-              "Критерий проверки",
+              tr("authoring.legacy.021"),
               <textarea
                 value={q.criterion}
                 onChange={(e) => patch({ criterion: e.target.value })}
               />,
             )
           )}
+          {label(
+            a.explanation,
+            <textarea
+              value={q.explanation || ""}
+              onChange={(e) => patch({ explanation: e.target.value })}
+            />,
+          )}
+          {q.type === "choice" &&
+            q.options.map((_, j) =>
+              label(
+                a.optionExplanation + " " + (j + 1),
+                <textarea
+                  key={j}
+                  value={q.optionExplanations?.[j] || ""}
+                  onChange={(e) =>
+                    patch({
+                      optionExplanations: q.options.map((_, k) =>
+                        k === j
+                          ? e.target.value
+                          : q.optionExplanations?.[k] || "",
+                      ),
+                    })
+                  }
+                />,
+              ),
+            )}
           <div className="t-inline-fields">
             {label(
-              "Навык",
+              tr("authoring.legacy.025"),
               <input
                 value={q.skill}
                 readOnly={fixedSkill}
@@ -235,7 +325,7 @@ export function QuestionEdit({
               />,
             )}
             {label(
-              "Макс. балл",
+              tr("authoring.legacy.022"),
               <input
                 type="number"
                 min={1}
@@ -247,10 +337,10 @@ export function QuestionEdit({
         </div>
         <aside className="t-source">
           <div className="t-over">
-            <Icon n="book" /> Источник вопроса
+            <Icon n="book" /> {tr("authoring.legacy.063")}
           </div>
           {label(
-            pdf ? "Страница PDF" : "Фрагмент материала",
+            pdf ? tr("authoring.legacy.042") : tr("authoring.legacy.053"),
             <select
               value={q.sourceId}
               onChange={(e) =>
@@ -259,7 +349,10 @@ export function QuestionEdit({
             >
               {pages.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {pdf ? "Страница" : "Фрагмент"} {p.id}
+                  {pdf
+                    ? tr("authoring.legacy.040")
+                    : tr("authoring.legacy.051")}{" "}
+                  {p.sourcePage || p.id} {p.documentName || ""}
                 </option>
               ))}
             </select>,
@@ -275,22 +368,22 @@ export function QuestionEdit({
                 type="button"
                 onClick={() => setSource(true)}
               >
-                Открыть источник ↗
+                {tr("authoring.legacy.072")}
               </button>
             </>
           )}
           {label(
-            "Цитата-основание",
+            tr("authoring.legacy.055"),
             <textarea
               rows={3}
-              placeholder="Точная фраза из материала"
+              placeholder={tr("authoring.legacy.046")}
               value={q.quote}
               onChange={(e) => patch({ quote: e.target.value })}
             />,
           )}
           {replace && (
             <button type="button" className="t-textbtn" onClick={replace}>
-              <Icon n="spark" size={15} /> Заменить с ИИ
+              <Icon n="spark" size={15} /> {tr("authoring.legacy.062")}
             </button>
           )}
         </aside>
@@ -316,6 +409,38 @@ export default function Editor({
   published: (run: AnyRow) => void;
   updated: () => void;
 }) {
+  const { language, timeZone } = useI18n();
+  const a = authoringMessages[language];
+  const tr = (v: string) => authoringLegacy[language][v] || v;
+  const [config, setConfig] = useState({
+    count: 5,
+    openCount: 1,
+    language: "ru",
+    difficulty: "medium",
+    topic: "",
+    focus: "",
+    prompt: "",
+    mode: "append",
+  });
+  const [settings, setSettings] = useState(
+    initial.settings || {
+      durationMinutes: null,
+      opensAt: null,
+      dueAt: null,
+      resultMode: "teacher",
+    },
+  );
+  const [preview, setPreview] = useState(false);
+  const [search, setSearch] = useState("");
+  const [matches, setMatches] = useState<Page[] | null>(null);
+  const localDate = (v: string | null) => {
+    if (!v) return "";
+    return Temporal.Instant.from(v)
+      .toZonedDateTimeISO(timeZone)
+      .toPlainDateTime()
+      .toString()
+      .slice(0, 16);
+  };
   const [lesson, setLesson] = useState(initial),
     [title, setTitle] = useState(initial.title),
     [inst, setInst] = useState(initial.instruction || ""),
@@ -345,14 +470,14 @@ export default function Editor({
     }
   };
   const save = async () => {
-    if (!title.trim()) throw Error("Введите название урока.");
-    if (editSource && manual.trim())
-      throw Error("Сначала нажмите «Применить текст».");
+    if (!title.trim()) throw Error(tr("authoring.legacy.004"));
+    if (editSource && manual.trim()) throw Error(tr("authoring.legacy.037"));
     return api("/api/lessons/" + lesson.id, "PATCH", {
       title,
       instruction: inst,
       selectedPages: selected,
       questions: qs,
+      settings,
     });
   };
   const apply = (l: AnyRow) => {
@@ -364,51 +489,52 @@ export default function Editor({
     updated();
   };
   const generate = (target?: Question) =>
-    run("Генерация вопросов…", async () => {
-      if (!selected.length) throw Error("Выберите страницы материала.");
+    run(tr("authoring.legacy.013"), async () => {
+      if (!selected.length) throw Error(tr("authoring.legacy.012"));
       await save();
       const r = await api(
         "/api/lessons/" + lesson.id + "/generate",
         "POST",
-        target ? { replaceQuestionId: target.id } : {},
+        target ? { ...config, replaceQuestionId: target.id } : config,
       );
       if (target) {
         if (r.questions.length !== 1 || r.questions[0].id !== target.id)
-          throw Error("Не удалось получить замену для выбранного вопроса.");
+          throw Error(tr("authoring.legacy.027"));
         setProposal(r.questions[0]);
         setProposalIssues(r.issues || []);
         return;
       }
-      if (r.questions.length) setQs(r.questions);
+      if (r.questions.length)
+        setQs(config.mode === "append" ? [...qs, ...r.questions] : r.questions);
       setMsg(
         [
           ...(r.issues || []),
           r.questions.length
-            ? "Проверьте вопросы и сохраните черновик."
-            : "ИИ не вернул вопросы. Повторите генерацию или добавьте вопрос вручную.",
+            ? tr("authoring.legacy.031")
+            : tr("authoring.legacy.018"),
         ].join(" "),
       );
     });
   return (
     <>
       <button className="t-back" onClick={leave}>
-        <Icon n="back" size={16} /> Мои уроки
+        <Icon n="back" size={16} /> {tr("authoring.legacy.067")}
       </button>
       <header className="t-heading">
         <div>
-          <div className="t-over">Конструктор урока</div>
-          <h1>Редактор урока</h1>
+          <div className="t-over">{tr("authoring.legacy.064")}</div>
+          <h1>{tr("authoring.legacy.076")}</h1>
         </div>
       </header>
       <fieldset className="t-editor-body" disabled={!!busy}>
         <section className="t-card t-stack">
-          <h2>Материал урока</h2>
+          <h2>{tr("authoring.legacy.066")}</h2>
           {label(
-            "Название урока",
+            tr("authoring.legacy.026"),
             <input value={title} onChange={(e) => setTitle(e.target.value)} />,
           )}
           {label(
-            "Инструкция ученикам",
+            tr("authoring.legacy.020"),
             <textarea
               rows={2}
               value={inst}
@@ -418,37 +544,44 @@ export default function Editor({
           <div className="t-actions">
             <label className="t-btn t-upload">
               <Icon n="upload" />
-              Загрузить PDF
+              {a.upload}
               <input
                 type="file"
-                accept="application/pdf"
+                multiple
+                accept=".pdf,.docx,.txt"
                 onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
+                  const files = Array.from(e.target.files || []);
+                  if (!files.length) return;
                   e.target.value = "";
-                  if (file.size > pdfLimitMiB * 1024 * 1024) {
-                    setError(`Максимальный размер PDF — ${pdfLimitMiB} МБ.`);
+                  if (
+                    files.some((file) => file.size > pdfLimitMiB * 1024 * 1024)
+                  ) {
+                    setError(`${pdfLimitMiB} MB · PDF / DOCX / TXT`);
                     setMsg("");
                     return;
                   }
-                  void run("Извлекаем текст…", async () => {
+                  void run(tr("authoring.legacy.019"), async () => {
+                    await save();
                     const f = new FormData();
-                    f.append("file", file);
+                    files.forEach((file) => f.append("file", file));
                     const l = await api(
-                      "/api/lessons/" + lesson.id + "/pdf",
+                      "/api/lessons/" + lesson.id + "/materials",
                       "POST",
                       f,
                     );
                     apply(l);
                     setMsg(
-                      l.warning || "PDF загружен. Выберите нужные страницы.",
+                      (l.warning ? tr(l.warning) : "") ||
+                        tr("authoring.legacy.001"),
                     );
                     if (l.warning) setEditSource(true);
                   });
                 }}
               />
             </label>
-            <small className="t-muted">До {pdfLimitMiB} МБ</small>
+            <small className="t-muted">
+              {pdfLimitMiB} MB · PDF / DOCX / TXT
+            </small>
             <button
               className="t-btn"
               onClick={() => {
@@ -459,27 +592,28 @@ export default function Editor({
                 setEditSource(!editSource);
               }}
             >
-              {editSource ? "Скрыть поле текста" : "Вставить текст"}
+              {editSource
+                ? tr("authoring.legacy.036")
+                : tr("authoring.legacy.009")}
             </button>
           </div>
           {editSource && (
             <div className="t-inset">
               {label(
-                "Текст урока · разделяйте абзацы пустой строкой",
+                tr("authoring.legacy.044"),
                 <textarea
                   value={manual}
                   rows={5}
                   onChange={(e) => setManual(e.target.value)}
                 />,
               )}
-              {pages.length > 0 && (
-                <small>Замена материала очистит вопросы черновика.</small>
-              )}
+
+              {pages.length > 0 && <small>{tr("authoring.legacy.061")}</small>}
               <button
                 className="t-btn"
                 disabled={!manual.trim()}
                 onClick={() =>
-                  run("Сохранение…", async () => {
+                  run(tr("authoring.legacy.038"), async () => {
                     apply(
                       await api("/api/lessons/" + lesson.id, "PATCH", {
                         title,
@@ -487,17 +621,63 @@ export default function Editor({
                         text: manual,
                       }),
                     );
-                    setMsg("Материал сохранён.");
+                    setMsg(tr("authoring.legacy.023"));
                   })
                 }
               >
-                Применить текст
+                {tr("authoring.legacy.075")}
               </button>
             </div>
           )}
           {pages.length > 0 && (
+            <div className="t-stack">
+              {label(
+                a.searchPlaceholder,
+                <input
+                  value={search}
+                  maxLength={2000}
+                  onChange={(e) => setSearch(e.target.value)}
+                />,
+              )}
+              <button
+                className="t-btn"
+                onClick={() =>
+                  run(a.search, async () => {
+                    await save();
+                    const r = await api(
+                      "/api/lessons/" + lesson.id + "/search",
+                      "POST",
+                      { query: search },
+                    );
+                    setMatches(r.fragments);
+                  })
+                }
+              >
+                {a.search}
+              </button>
+              {matches &&
+                (matches.length ? (
+                  matches.map((p, i) => (
+                    <button
+                      className="t-btn"
+                      key={i}
+                      onClick={() => setSource(p)}
+                    >
+                      {p.documentName || p.id}: {p.text.slice(0, 160)}…
+                    </button>
+                  ))
+                ) : (
+                  <p>{a.noMatches}</p>
+                ))}
+            </div>
+          )}
+          {pages.length > 0 && (
             <div>
-              <h3>{lesson.pdfUrl ? "Страницы PDF" : "Фрагменты материала"}</h3>
+              <h3>
+                {lesson.pdfUrl
+                  ? tr("authoring.legacy.043")
+                  : tr("authoring.legacy.054")}
+              </h3>
               <div className="t-pages">
                 {pages.map((p) => (
                   <div key={p.id}>
@@ -513,12 +693,16 @@ export default function Editor({
                           )
                         }
                       />
-                      {lesson.pdfUrl ? "Стр." : "Абз."} {p.id}
+                      {p.documentName ? p.documentName + " · " : ""}
+                      {lesson.pdfUrl
+                        ? tr("authoring.legacy.039")
+                        : tr("authoring.legacy.002")}{" "}
+                      {p.sourcePage || p.id}
                     </label>
                     <button
                       className="t-preview"
                       onClick={() => setSource(p)}
-                      aria-label={"Предпросмотр " + p.id}
+                      aria-label={tr("authoring.legacy.030") + p.id}
                     >
                       ↗
                     </button>
@@ -531,17 +715,115 @@ export default function Editor({
         <section className="t-editor-questions">
           <div className="t-row">
             <h2>
-              Задания <small>{qs.length}</small>
+              {tr("authoring.legacy.060")} <small>{qs.length}</small>
             </h2>
             <button className="t-btn" onClick={() => generate()}>
               <Icon n="spark" />
-              Сгенерировать вопросы
+              {tr("authoring.legacy.077")}
             </button>
           </div>
-          <p className="t-muted">
-            ИИ предложит четыре вопроса с выбором ответа и один открытый по
-            выбранному материалу.
-          </p>
+          <div className="t-card t-stack">
+            <div className="t-generation-fields">
+              {label(
+                a.count,
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={config.count}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      count: Number(e.target.value),
+                      openCount: Math.min(
+                        config.openCount,
+                        Number(e.target.value),
+                      ),
+                    })
+                  }
+                />,
+              )}
+              {label(
+                a.openCount,
+                <input
+                  type="number"
+                  min={0}
+                  max={config.count}
+                  value={config.openCount}
+                  onChange={(e) =>
+                    setConfig({ ...config, openCount: Number(e.target.value) })
+                  }
+                />,
+              )}
+              {label(
+                a.language,
+                <select
+                  value={config.language}
+                  onChange={(e) =>
+                    setConfig({ ...config, language: e.target.value })
+                  }
+                >
+                  <option value="ru">Русский</option>
+                  <option value="kk">Қазақша</option>
+                  <option value="en">English</option>
+                </select>,
+              )}
+              {label(
+                a.difficulty,
+                <select
+                  value={config.difficulty}
+                  onChange={(e) =>
+                    setConfig({ ...config, difficulty: e.target.value })
+                  }
+                >
+                  <option value="easy">{a.easy}</option>
+                  <option value="medium">{a.medium}</option>
+                  <option value="hard">{a.hard}</option>
+                </select>,
+              )}
+            </div>
+            {label(
+              a.topic,
+              <input
+                maxLength={2000}
+                value={config.topic}
+                onChange={(e) =>
+                  setConfig({ ...config, topic: e.target.value })
+                }
+              />,
+            )}
+            {label(
+              a.focus,
+              <input
+                maxLength={2000}
+                value={config.focus}
+                onChange={(e) =>
+                  setConfig({ ...config, focus: e.target.value })
+                }
+              />,
+            )}
+            {label(
+              a.prompt,
+              <textarea
+                maxLength={2000}
+                value={config.prompt}
+                onChange={(e) =>
+                  setConfig({ ...config, prompt: e.target.value })
+                }
+              />,
+            )}
+            {label(
+              a.mode,
+              <select
+                value={config.mode}
+                onChange={(e) => setConfig({ ...config, mode: e.target.value })}
+              >
+                <option value="append">{a.append}</option>
+                <option value="replace">{a.replace}</option>
+              </select>,
+            )}
+            <p className="t-muted">{a.budget}</p>
+          </div>
           {qs.map((q, i) => (
             <QuestionEdit
               key={q.id}
@@ -551,6 +833,26 @@ export default function Editor({
               pdf={lesson.pdfUrl}
               change={(v) => setQs(qs.map((o, j) => (i === j ? v : o)))}
               remove={() => setQs(qs.filter((_, j) => i !== j))}
+              moveUp={
+                i > 0
+                  ? () =>
+                      setQs(
+                        qs.map((v, j) =>
+                          j === i - 1 ? q : j === i ? qs[i - 1] : v,
+                        ),
+                      )
+                  : undefined
+              }
+              moveDown={
+                i < qs.length - 1
+                  ? () =>
+                      setQs(
+                        qs.map((v, j) =>
+                          j === i + 1 ? q : j === i ? qs[i + 1] : v,
+                        ),
+                      )
+                  : undefined
+              }
               replace={() => generate(q)}
             />
           ))}
@@ -561,34 +863,119 @@ export default function Editor({
             }
           >
             <Icon n="plus" />
-            Добавить свой вопрос
+            {tr("authoring.legacy.059")}
           </button>
         </section>
+        <section className="t-card t-stack">
+          <h2>{a.settings}</h2>
+          {label(
+            a.duration,
+            <input
+              type="number"
+              min={1}
+              max={480}
+              value={settings.durationMinutes ?? ""}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  durationMinutes: e.target.value
+                    ? Number(e.target.value)
+                    : null,
+                })
+              }
+            />,
+          )}
+          {label(
+            a.opens,
+            <input
+              type="datetime-local"
+              value={localDate(settings.opensAt)}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  opensAt: e.target.value
+                    ? Temporal.PlainDateTime.from(e.target.value)
+                        .toZonedDateTime(timeZone)
+                        .toInstant()
+                        .toString()
+                    : null,
+                })
+              }
+            />,
+          )}
+          {label(
+            a.due,
+            <input
+              type="datetime-local"
+              value={localDate(settings.dueAt)}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  dueAt: e.target.value
+                    ? Temporal.PlainDateTime.from(e.target.value)
+                        .toZonedDateTime(timeZone)
+                        .toInstant()
+                        .toString()
+                    : null,
+                })
+              }
+            />,
+          )}
+          <small>{timeZone}</small>
+          {label(
+            a.results,
+            <select
+              value={settings.resultMode}
+              onChange={(e) =>
+                setSettings({ ...settings, resultMode: e.target.value })
+              }
+            >
+              <option value="teacher">{a.teacher}</option>
+              <option value="immediate">{a.immediate}</option>
+            </select>,
+          )}
+        </section>
         <div className="t-actions">
+          <button className="t-btn" onClick={() => setPreview(true)}>
+            {a.preview}
+          </button>
+          <button
+            className="t-textbtn"
+            onClick={() => {
+              if (window.confirm(a.deleteConfirm))
+                void run(a.delete, async () => {
+                  await api("/api/lessons/" + lesson.id, "DELETE");
+                  updated();
+                  leave();
+                });
+            }}
+          >
+            {a.delete}
+          </button>
           <button
             className="t-btn"
             onClick={() =>
-              run("Сохранение…", async () => {
+              run(tr("authoring.legacy.038"), async () => {
                 await save();
                 updated();
-                setMsg("Черновик сохранён.");
+                setMsg(tr("authoring.legacy.056"));
               })
             }
           >
-            Сохранить черновик
+            {tr("authoring.legacy.079")}
           </button>
           <button
             className="t-primary"
             onClick={() =>
-              run("Проверяем…", async () => {
-                validate(qs, pages, selected);
+              run(tr("authoring.legacy.033"), async () => {
+                validate(qs, pages, selected, tr);
                 await save();
                 updated();
                 setPublish(true);
               })
             }
           >
-            Опубликовать для группы <Icon n="arrow" />
+            {tr("authoring.legacy.070")} <Icon n="arrow" />
           </button>
         </div>
       </fieldset>
@@ -611,7 +998,10 @@ export default function Editor({
         <Source p={source} pdf={lesson.pdfUrl} close={() => setSource(null)} />
       )}
       {proposal && (
-        <Overlay title="Предложенная замена" close={() => setProposal(null)}>
+        <Overlay
+          title={tr("authoring.legacy.029")}
+          close={() => setProposal(null)}
+        >
           {proposalIssues.length > 0 && (
             <p role="alert" className="t-notice">
               {proposalIssues.join(" ")}
@@ -631,7 +1021,7 @@ export default function Editor({
               className="t-primary"
               onClick={() => {
                 try {
-                  validate([proposal], pages, selected);
+                  validate([proposal], pages, selected, tr);
                   const normalize = (prompt: string) =>
                     prompt
                       .normalize("NFKC")
@@ -642,30 +1032,56 @@ export default function Editor({
                       (q) => normalize(q.prompt) === normalize(proposal.prompt),
                     )
                   )
-                    throw Error("Введите новую формулировку вопроса.");
+                    throw Error(tr("authoring.legacy.005"));
                   setQs(qs.map((q) => (q.id === proposal.id ? proposal : q)));
                   setProposal(null);
-                  setMsg("Вопрос заменён. Сохраните черновик.");
+                  setMsg(tr("authoring.legacy.008"));
                 } catch (e) {
                   setProposalIssues([
-                    e instanceof Error ? e.message : "Проверьте задание.",
+                    e instanceof Error ? e.message : tr("authoring.legacy.032"),
                   ]);
                 }
               }}
             >
-              Применить замену
+              {tr("authoring.legacy.074")}
             </button>
             <button className="t-btn" onClick={() => setProposal(null)}>
-              Оставить исходный вопрос
+              {tr("authoring.legacy.071")}
             </button>
           </div>
         </Overlay>
       )}
+      {preview && (
+        <Overlay title={a.preview} close={() => setPreview(false)}>
+          <h2>{title}</h2>
+          <p>{inst}</p>
+          {qs.map((q, i) => (
+            <article className="t-question" key={q.id}>
+              <h3>
+                {i + 1}. {q.prompt}
+              </h3>
+              {q.type === "choice" ? (
+                q.options.map((v, j) => (
+                  <label className="t-opt" key={j}>
+                    <input type="radio" name={"preview-" + q.id} />
+                    {v}
+                  </label>
+                ))
+              ) : (
+                <textarea aria-label={q.prompt} />
+              )}
+            </article>
+          ))}
+        </Overlay>
+      )}
       {publish && (
-        <Overlay title="Провести урок" close={() => setPublish(false)}>
+        <Overlay
+          title={tr("authoring.legacy.034")}
+          close={() => setPublish(false)}
+        >
           {groups.length ? (
             label(
-              "Группа",
+              tr("authoring.legacy.014"),
               <select value={group} onChange={(e) => setGroup(e.target.value)}>
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>
@@ -675,16 +1091,14 @@ export default function Editor({
               </select>,
             )
           ) : (
-            <p>
-              Сначала создайте группу в разделе «Группы». Черновик сохранён.
-            </p>
+            <p>{tr("authoring.legacy.078")}</p>
           )}
           {error && <p className="t-error">{error}</p>}
           <button
             className="t-primary"
             disabled={!group || !!busy}
             onClick={() =>
-              run("Публикуем…", async () => {
+              run(tr("authoring.legacy.035"), async () => {
                 const r = await api(
                   "/api/lessons/" + lesson.id + "/publish",
                   "POST",
@@ -695,7 +1109,7 @@ export default function Editor({
               })
             }
           >
-            Назначить урок
+            {tr("authoring.legacy.068")}
           </button>
         </Overlay>
       )}

@@ -1,7 +1,10 @@
 "use client";
+import { translate } from "./I18n";
 import { FormEvent, useEffect, useState } from "react";
 import Brand from "./Brand";
 import Atlas from "./Atlas";
+import Profile,{PreferencesFields} from "./Profile";
+import {useI18n} from "./I18n";
 import Teacher from "./Teacher";
 import Student from "./Student";
 
@@ -9,6 +12,7 @@ type Actor = { id: string; name: string; role: "teacher" | "student" };
 type Props = { invite?: string; initialRun?: string; studentEntry?: boolean };
 
 export default function Entry({ invite, initialRun, studentEntry }: Props) {
+  const {t}=useI18n();
   const [role, setRole] = useState<Actor["role"]>(
     invite || initialRun || studentEntry ? "student" : "teacher",
   );
@@ -52,9 +56,9 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
           }
           setUser(data);
         } else if (invite || res.status !== 401)
-          setError(data.error || "Не удалось открыть кабинет.");
+          setError(data.error || translate("Не удалось открыть кабинет."));
       } catch {
-        if (active) setError("Сервер недоступен. Обновите страницу.");
+        if (active) setError(translate("ui.server.unavailable.refresh.the.page"));
       } finally {
         if (active) setLoading(false);
       }
@@ -76,10 +80,10 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw Error(data.error || "Не удалось войти.");
+      if (!res.ok) throw Error(data.error || translate("Не удалось войти."));
       setUser(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Проверьте соединение.");
+      setError(err instanceof Error ? err.message : translate("Проверьте соединение."));
     } finally {
       setBusy(false);
     }
@@ -94,7 +98,7 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
       if (!r.ok) throw Error();
       location.replace("/");
     } catch {
-      window.alert("Не удалось выйти. Проверьте соединение и повторите.");
+      window.alert(translate("ui.could.not.sign.out.check.your.connection.and.retry"));
     }
   }
   function openInvitation(event: FormEvent<HTMLFormElement>) {
@@ -114,59 +118,57 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
       location.assign("/invite/" + match[1]);
     } catch {
       setError(
-        "Вставьте индивидуальную ссылку с /invite/ из приглашения учителя.",
+        translate("ui.paste.your.personal.invite.link.from.your.teacher"),
       );
     }
   }
   if (loading)
     return (
       <div className="entry-wait">
-        <Brand /> Открываем кабинет…
-      </div>
+        <Brand />{translate("ui.opening.workspace")}</div>
     );
   if (user?.role === "teacher")
-    return <Teacher name={user.name} onLogout={logout} />;
+    return <><Profile user={user} onUpdate={name=>setUser({...user,name})} onLogout={logout}/><Teacher name={user.name} onLogout={logout} /></>;
   if (user?.role === "student")
     return (
-      <Student
+      <><Profile user={user} onUpdate={name=>setUser({...user,name})} onLogout={logout}/><Student
         name={user.name}
         studentId={user.id}
         initialRun={joinedRun}
         onLogout={logout}
-      />
+      /></>
     );
   const pupil = role === "student";
   return (
     <main className="entry">
       <header className="entry-head">
         <Brand />
-        <span>Платформа для онлайн-занятий</span>
+        <span>{translate("ui.a.workspace.for.learning")}</span>
       </header>
+      <details className="entry-preferences"><summary>{t("profile.title")}</summary><PreferencesFields/></details>
       <div className="entry-grid">
         <section className="entry-print">
-          <div className="print-title">
-            Пространство
-            <br />
-            <em>урока</em>
+          <div className="print-title">{translate("ui.your.learning")}<br />
+            <em>{translate("ui.workspace")}</em>
           </div>
           <Atlas />
           <div className="print-foot">
-            <span>Материалы и задания</span>
+            <span>{translate("ui.materials.and.assignments")}</span>
             <span aria-hidden="true">✳</span>
           </div>
         </section>
         <section className="entry-form">
           <div className="entry-kicker">
             <i />
-            {pupil ? "Кабинет ученика" : "Кабинет учителя"}
+            {pupil ? translate("ui.student.workspace") : translate("ui.teacher.workspace")}
           </div>
-          <h1>{pupil ? "Вход на занятие" : "С возвращением"}</h1>
+          <h1>{pupil ? translate("ui.join.a.lesson") : translate("ui.welcome.back")}</h1>
           <p>
             {pupil
-              ? "Вставьте ссылку, которую учитель выдал лично вам."
-              : "Войдите, чтобы подготовить урок и посмотреть работы учеников."}
+              ? translate("ui.paste.the.link.your.teacher.shared.with.you.personally")
+              : translate("ui.sign.in.to.prepare.lessons.and.review.student.work")}
           </p>
-          <div className="entry-roles" role="group" aria-label="Выбор роли">
+          <div className="entry-roles" role="group" aria-label={translate("ui.choose.your.role")}>
             {(["teacher", "student"] as const).map((option) => (
               <button
                 key={option}
@@ -178,15 +180,13 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
                   setError("");
                 }}
               >
-                {option === "teacher" ? "Я учитель" : "Я ученик"}
+                {option === "teacher" ? translate("ui.i.m.a.teacher") : translate("ui.i.m.a.student")}
               </button>
             ))}
           </div>
           {pupil ? (
             <form onSubmit={openInvitation}>
-              <label>
-                Ссылка-приглашение
-                <input
+              <label>{translate("ui.invitation.link")}<input
                   name="invitation"
                   inputMode="url"
                   autoCapitalize="none"
@@ -198,19 +198,17 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
               </label>
               {error && (
                 <div role="alert" className="entry-error">
-                  {error}
+                  {translate(error)}
                 </div>
               )}
               <button className="entry-submit" disabled={busy}>
-                {busy ? "Открываем кабинет…" : "Войти по приглашению"}{" "}
+                {busy ? translate("ui.opening.workspace") : translate("ui.join.with.invitation")}{" "}
                 <span aria-hidden="true">→</span>
               </button>
             </form>
           ) : (
             <form onSubmit={login}>
-              <label>
-                Электронная почта
-                <input
+              <label>{translate("ui.email")}<input
                   name="email"
                   type="email"
                   autoComplete="username"
@@ -218,9 +216,7 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
                   required
                 />
               </label>
-              <label>
-                Пароль
-                <span className="entry-password">
+              <label>{translate("ui.password")}<span className="entry-password">
                   <input
                     name="password"
                     type={visible ? "text" : "password"}
@@ -232,17 +228,17 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
                     onClick={() => setVisible(!visible)}
                     aria-pressed={visible}
                   >
-                    {visible ? "Скрыть" : "Показать"}
+                    {visible ? translate("ui.hide") : translate("ui.show")}
                   </button>
                 </span>
               </label>
               {error && (
                 <div role="alert" className="entry-error">
-                  {error}
+                  {translate(error)}
                 </div>
               )}
               <button className="entry-submit" disabled={busy}>
-                {busy ? "Входим…" : "Войти в кабинет"}
+                {busy ? translate("ui.signing.in") : translate("ui.sign.in")}
                 <span aria-hidden="true">→</span>
               </button>
             </form>

@@ -51,6 +51,7 @@ try {
   setup();
   const handlers = await import("../app/api/[...path]/route.ts");
   const route = async (cookie, method, p, data, expected = 200, headers = {}) => {
+    if(method==="POST" && p==="lessons") data={...data,settings:{durationMinutes:null,opensAt:null,dueAt:null,resultMode:"immediate"}};
     const request = new Request("http://localhost:3000/api/" + p, {
       method,
       headers: { cookie, "content-type": "application/json", ...headers },

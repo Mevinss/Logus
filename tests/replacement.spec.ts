@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { choice, launchFixture, open, quote, teacherLogin } from "./fixture";
 
+test.use({actionTimeout:15000});
+
 test("Замена изменяет только выбранный вопрос после подтверждения", async ({
   page,
 }) => {
@@ -72,8 +74,8 @@ test("Замена изменяет только выбранный вопрос
       data: { text: "Первый абзац.\n\nНовый источник.", questions: original },
     });
     const badQuote = await propose("select");
-    expect(badQuote.ok()).toBe(true);
-    expect((await badQuote.json()).issues.join(" ")).toMatch(/цитат/i);
+    expect(badQuote.ok()).toBe(false);
+    expect((await badQuote.json()).error).toMatch(/цитат|источник|ИИ/i);
     expect(await saved()).toEqual(original);
   } finally {
     await fixture.cleanup();

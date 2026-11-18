@@ -1,8 +1,1 @@
-export default function Brand() {
-  return (
-    <span className="logus-brand">
-      <img src="/logo.svg" width="35" height="35" alt="" />
-      Logus
-    </span>
-  );
-}
+export default function Brand(){return <span className="logus-brand"><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="8" fill="currentColor"/><path d="M10 9v14h13M16 9v8h7" fill="none" stroke="var(--surface, #f7f6f2)" strokeWidth="2.4"/></svg>Logus</span>}

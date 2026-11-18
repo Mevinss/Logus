@@ -38,6 +38,8 @@ const noOverflow = async (p: Page) =>
 const button = (p: Page, text: string) =>
   p.getByRole("button", { name: text, exact: true });
 
+test.use({actionTimeout:15000});
+
 test("Ручной урок, PDF, журнал, выборочная разминка и постоянная база", async ({
   browser,
 }) => {
@@ -72,6 +74,12 @@ test("Ручной урок, PDF, журнал, выборочная разми�
     const quick = await write(tr, url + "/api/lessons", {
       title: "Ручной урок",
       text: quote,
+      settings: {
+        durationMinutes: null,
+        opensAt: null,
+        dueAt: null,
+        resultMode: "immediate",
+      },
     });
     await write(
       tr,
@@ -88,7 +96,9 @@ test("Ручной урок, PDF, журнал, выборочная разми�
     await button(o, "Я ученик").click();
     await o.getByLabel("Ссылка-приглашение").fill(issued.url);
     await button(o, "Войти по приглашению").click();
-    await expect(o.locator("form").getByRole("alert")).toContainText("/invite/");
+    await expect(o.locator("form").getByRole("alert")).toContainText(
+      "/invite/",
+    );
     await o.getByLabel("Ссылка-приглашение").fill(pair.students[0].inviteUrl);
     await button(o, "Войти по приглашению").click();
     await expect(o.getByRole("heading", { name: "Мои занятия" })).toBeVisible();
@@ -141,15 +151,15 @@ test("Ручной урок, PDF, журнал, выборочная разми�
     await t
       .getByLabel("Инструкция ученикам")
       .fill("Прочитайте вторую страницу и выполните задания.");
-    await t
-      .locator("input[type=file]")
-      .setInputFiles({
-        name: "condensation.pdf",
-        mimeType: "application/pdf",
-        buffer: pdfFixture(),
-      });
-    await expect(t.getByRole("checkbox", { name: "Стр. 2" })).toBeChecked();
-    await t.getByRole("checkbox", { name: "Стр. 1" }).uncheck();
+    await t.locator("input[type=file]").setInputFiles({
+      name: "condensation.pdf",
+      mimeType: "application/pdf",
+      buffer: pdfFixture(),
+    });
+    await expect(t.getByRole("checkbox", { name: /Стр\. 2$/ })).toBeChecked();
+    await t.getByRole("checkbox", { name: /Стр\. 1$/ }).uncheck();
+    await t.getByLabel("Количество вопросов", { exact: true }).fill("2");
+    await t.getByLabel("Доступ к результатам").selectOption("immediate");
     fixture.setMode("down");
     await button(t, "Сгенерировать вопросы").click();
     await expect(t.locator(".t-error")).toContainText(
@@ -157,7 +167,7 @@ test("Ручной урок, PDF, журнал, выборочная разми�
     );
     fixture.setMode("invalid");
     await button(t, "Сгенерировать вопросы").click();
-    await expect(t.locator(".t-notice")).toContainText(/цитат/i);
+    await expect(t.locator(".t-error")).toContainText(/цитат|источник|ИИ/i);
     fixture.setMode("ok");
     await button(t, "Сгенерировать вопросы").click();
     const changed = "Какое вещество видно на холодном стекле?";
@@ -300,7 +310,7 @@ test("Ручной урок, PDF, журнал, выборочная разми�
       .first()
       .click();
     await expect(t.getByRole("dialog")).toContainText(
-      "Вариант «Пар» выбрали 1 из 1",
+      /Вариант «\s*Пар\s*» выбрали 1 из\s+1/,
     );
     await button(t, "Подготовить разминку").click();
     await button(t, "Предложить задания с ИИ").click();

@@ -1,8 +1,8 @@
 .st-app {
-  --st-ink: #203c32;
-  --st-paper: #f7f6ef;
-  --st-line: #d7dacf;
-  --st-muted: #626e63;
+  --st-ink: var(--text);
+  --st-paper: var(--canvas);
+  --st-line: var(--border);
+  --st-muted: var(--muted);
   min-height: 100dvh;
   background: var(--st-paper);
   color: var(--st-ink);
@@ -31,7 +31,7 @@
   cursor: wait;
 }
 .st-top {
-  background: #fffef8;
+  background: var(--surface);
   border-bottom: 1px solid var(--st-line);
 }
 .st-topin,
@@ -122,17 +122,17 @@
   gap: 7px;
   font-size: 13px;
   font-weight: 600;
-  color: #684322;
-  background: #efe6d5;
+  color: var(--text);
+  background: var(--subtle);
   border-radius: 20px;
   padding: 4px 11px;
 }
 .st-tag.green {
-  background: #e4eddf;
-  color: #33553a;
+  background: var(--subtle);
+  color: var(--text);
 }
 .st-card {
-  background: #fffef9;
+  background: var(--surface);
   border: 1px solid var(--st-line);
   border-radius: 14px;
   padding: clamp(18px, 4vw, 32px);
@@ -150,7 +150,7 @@
   color: var(--st-muted);
 }
 .st-status.pending {
-  color: #984420;
+  color: var(--muted);
 }
 .st-main .st-btn,
 .st-app .st-ghost,
@@ -172,11 +172,11 @@
   text-decoration: none;
 }
 .st-main .st-btn {
-  background: #254b3c;
-  color: white;
+  background: var(--accent);
+  color:var(--on-accent);
 }
 .st-main .st-btn:hover {
-  background: #173a2c;
+  background: var(--accent);
 }
 .st-app .st-ghost {
   background: transparent;
@@ -186,7 +186,7 @@
 .st-link {
   background: transparent;
   padding: 7px 0;
-  color: #375a46;
+  color: var(--text);
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -213,22 +213,22 @@
 }
 .st-tabs button[aria-selected="true"] {
   color: var(--st-ink);
-  border-bottom-color: #b96b47;
+  border-bottom-color: var(--border);
 }
 .st-topic {
   display: grid;
   gap: 8px;
 }
 .st-note {
-  border-left: 3px solid #bf7c5c;
-  background: #f2ede2;
+  border-left: 3px solid var(--border);
+  background: var(--canvas);
   padding: 12px 15px;
-  color: #604735;
+  color: var(--text);
   font-size: 15px;
 }
 .st-error {
-  background: #f9e8df;
-  color: #7c3024;
+  background: var(--canvas);
+  color: var(--text);
   padding: 14px;
   border-radius: 8px;
 }
@@ -251,13 +251,13 @@
 }
 .st-meter {
   height: 5px;
-  background: #e3e5dc;
+  background: var(--subtle);
   border-radius: 8px;
   overflow: hidden;
 }
 .st-meter i {
   display: block;
-  background: #af6a4e;
+  background: var(--accent);
   height: 100%;
   transition: width 0.16s;
 }
@@ -277,11 +277,11 @@
   padding: 13px;
   min-height: 49px;
   cursor: pointer;
-  color: #334338;
+  color: var(--text);
 }
 .st-option.selected {
-  border-color: #45684c;
-  background: #edf2e8;
+  border-color: var(--border);
+  background: var(--canvas);
 }
 .st-option input {
   width: 18px;
@@ -296,7 +296,7 @@
   min-height: 136px;
   border: 1px solid var(--st-line);
   border-radius: 8px;
-  background: #fffef9;
+  background: var(--surface);
   color: var(--st-ink);
   padding: 12px;
 }
@@ -315,11 +315,11 @@
   font-weight: 600;
 }
 .st-index button.answered {
-  background: #e5ecdf;
+  background: var(--subtle);
 }
 .st-index button.current {
-  border: 2px solid #35563e;
-  color: #25432f;
+  border: 2px solid var(--border);
+  color: var(--text);
 }
 .st-result {
   display: flex;
@@ -342,7 +342,7 @@
   white-space: nowrap;
 }
 .st-app :focus-visible {
-  outline: 3px solid #b76f49;
+  outline: 3px solid var(--border);
   outline-offset: 2px;
 }
 .st-text {
@@ -390,16 +390,16 @@
   }
 }
 
-.st-lab, .st-review { background: #edf3ea; border: 1px solid #bdcdbd; }
+.st-lab, .st-review { background: var(--canvas); border: 1px solid var(--border); }
 .st-lab { padding: 16px 20px; margin-block: 16px; border-radius: 12px; }
 .st-lab summary { cursor: pointer; font-weight: 650; padding-block: 4px; }
 .st-lab-controls { display: flex; flex-wrap: wrap; gap: 16px 32px; margin: 16px 0; }
 .st-lab label { display: grid; gap: 5px; }
-.st-lab select { background: white; font: inherit; color: inherit; padding: 8px; }
+.st-lab select { background:var(--surface); font: inherit; color: inherit; padding: 8px; }
 .st-lab input { accent-color: #2a6048; min-height: 32px; }
 .st-lab output strong { font: 600 1.6rem Georgia, serif; }
 .st-lab p { margin-bottom: 0; }
 .st-review table { width: 100%; border-collapse: collapse; margin-block: 16px; }
-.st-review td, .st-review th { text-align: left; border-bottom: 1px solid #bfcdc1; padding: 10px 4px; }
+.st-review td, .st-review th { text-align: left; border-bottom: 1px solid var(--border); padding: 10px 4px; }
 .st-review tbody th { font-weight: 500; }
 .st-review td { white-space: nowrap; }

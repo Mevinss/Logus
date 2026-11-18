@@ -97,7 +97,7 @@ test("Учитель импортирует класс, проверяет от�
       headers: { cookie: sessions[1] },
     });
     await expect(
-      t.getByText(/Вошли в кабинет: 2 · Открыли урок: 1/),
+      t.getByText(/Вошли в кабинет:\s*2\s*·\s*Открыли урок:\s*1/),
     ).toBeVisible({ timeout: 12000 });
     const responses = await Promise.all(
       sessions.map((cookie) =>
@@ -115,7 +115,7 @@ test("Учитель импортирует класс, проверяет от�
     await t
       .getByRole("button", { name: "Подтвердить и перейти дальше" })
       .click();
-    await expect(t.getByText(/Ученик 02 · В очереди: 29/)).toBeVisible();
+    await expect(t.getByText(/Ученик 02\s*·\s*В очереди:\s*29/)).toBeVisible();
     await t.getByRole("button", { name: "Журнал", exact: true }).click();
     await expect(t.getByRole("row", { name: /Ученик 01/ })).toContainText(
       "3 / 3",

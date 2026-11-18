@@ -8,6 +8,7 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { once } from "node:events";
+import { DatabaseSync } from "node:sqlite";
 import { setTimeout as delay } from "node:timers/promises";
 
 const listen = async (s: Server) => {
@@ -59,26 +60,16 @@ export async function launchFixture(publicPractice = false) {
       res.writeHead(503).end();
       return;
     }
-    const reply = input.answer
-      ? { points: 2, evidence: input.answer }
-      : input.skill
-        ? {
-            questions: [
-              {
-                ...choice,
-                prompt: "Как называется появление капель на стекле?",
-              },
-            ],
-          }
-        : {
-            questions: [
-              {
-                ...choice,
-                quote: providerMode === "invalid" ? "absent quote" : quote,
-              },
-              open,
-            ],
-          };
+    const withExplanation = (q:typeof choice|typeof open) => ({...q, explanation:"Водяной пар охлаждается и превращается в капли жидкости.",optionExplanations:q.options.map((_,i)=>i===q.correctIndex?"Это капли жидкости.":"В материале описан переход пара в жидкость.")});
+    const reply = input.answer ? {points:2,evidence:input.answer} : input.skill ? {
+      questions:[withExplanation({...choice,prompt:"Как называется появление капель на стекле?"})]
+    } : {
+      questions: Array.from({length:input.configured?input.config.count:2},(_,i)=>{
+        const isOpen=input.configured?i>=input.config.count-input.config.openCount:i===1;
+        const q=isOpen?open:choice;
+        return withExplanation({...q,prompt:q.prompt+(i>0&&!isOpen?" ("+(i+1)+")":""),quote:providerMode==="invalid"?"absent quote":quote});
+      })
+    };
     res.writeHead(200, { "Content-Type": "application/json" }).end(
       JSON.stringify({
         choices: [{ message: { content: JSON.stringify(reply) } }],
@@ -166,6 +157,10 @@ export async function launchFixture(publicPractice = false) {
   }
   return {
     url,
+    expireAttempt: (run: string, student: string) => {
+      const db = new DatabaseSync(join(env.LOGUS_DATA_DIR!, "logus.sqlite"));
+      try {db.prepare("UPDATE attempt_clock SET ends=? WHERE run=? AND student=?").run(Date.now()-1,run,student);} finally {db.close();}
+    },
     setMode: (value: typeof providerMode) => {
       providerMode = value;
     },

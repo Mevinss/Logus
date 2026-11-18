@@ -1,4 +1,5 @@
 "use client";
+import { translate, formatDate, useI18n } from "./I18n";
 import { useEffect, useState } from "react";
 import { AnyRow, Overlay, api, statusName } from "./teacher-ui";
 
@@ -7,6 +8,7 @@ async function qr(url: string) {
   return toDataURL(url, { width: 220, margin: 4 });
 }
 export function InviteQR({ url }: { url: string }) {
+  useI18n();
   const [src, setSrc] = useState("");
   useEffect(() => {
     let live = true;
@@ -23,17 +25,17 @@ export function InviteQR({ url }: { url: string }) {
       src={src}
       width="180"
       height="180"
-      alt="QR-код индивидуального приглашения"
+      alt={translate("ui.personal.invitation.qr.code")}
     />
   ) : null;
 }
 async function printCards(group: AnyRow) {
   const win = window.open("", "_blank");
-  if (!win) throw Error("Разрешите открытие окна для печати.");
+  if (!win) throw Error(translate("ui.allow.the.print.window.to.open"));
   try {
     win.opener = null;
     const doc = win.document;
-    doc.title = "Приглашения · " + group.name;
+    doc.title = translate("Приглашения ·") + " " + group.name;
     const style = doc.createElement("style");
     style.textContent =
       "body{font:16px Arial;color:#17271d} main{display:grid;grid-template-columns:repeat(3,1fr)} article{text-align:center;border:1px dashed #aaa;padding:12px;break-inside:avoid} img{display:block;width:36mm;height:36mm;margin:auto} small{display:block} @page{margin:10mm}";
@@ -73,6 +75,7 @@ export function RosterTools({
   lessons: AnyRow[];
   reload: () => void;
 }) {
+  useI18n();
   const [mode, setMode] = useState(""),
     [raw, setRaw] = useState(""),
     [email, setEmail] = useState(""),
@@ -116,36 +119,28 @@ export function RosterTools({
       <div className="t-actions">
         {group.managesRoster && (
           <>
-            <button className="t-btn" onClick={() => open("import")}>
-              Импорт класса
-            </button>
+            <button className="t-btn" onClick={() => open("import")}>{translate("ui.import.class")}</button>
             <button
               className="t-btn"
               disabled={busy || !group.students.length}
               onClick={() => perform(() => printCards(group))}
-            >
-              Печать QR-карточек
-            </button>
-            <button className="t-btn" onClick={() => open("staff")}>
-              Преподаватели класса
-            </button>
+            >{translate("ui.print.qr.cards")}</button>
+            <button className="t-btn" onClick={() => open("staff")}>{translate("ui.class.teachers")}</button>
           </>
         )}
         {!!lessons.length && (
-          <button className="t-btn" onClick={() => open("share")}>
-            Передать копию урока
-          </button>
+          <button className="t-btn" onClick={() => open("share")}>{translate("ui.share.lesson.copy")}</button>
         )}
       </div>
-      {!mode && message && <p role="status">{message}</p>}
+      {!mode && message && <p role="status">{translate(message)}</p>}
       {mode && (
         <Overlay
           title={
             mode === "import"
-              ? "Импорт класса"
+              ? translate("ui.import.class")
               : mode === "staff"
-                ? "Преподаватели класса"
-                : "Передать копию урока"
+                ? translate("ui.class.teachers")
+                : translate("ui.share.lesson.copy")
           }
           close={() => {
             if (!busy) setMode("");
@@ -153,23 +148,18 @@ export function RosterTools({
         >
           {mode === "import" ? (
             <>
-              <label className="t-field">
-                Список учеников
-                <textarea
+              <label className="t-field">{translate("ui.student.list")}<textarea
                   rows={7}
                   value={raw}
                   onChange={(e) => setRaw(e.target.value)}
-                  placeholder="Вставьте один столбец из Excel, по одному имени в строке"
+                  placeholder={translate("ui.paste.one.excel.column.one.name.per.line")}
                 />
               </label>
-              <p>
-                К добавлению: {fresh.length}. Совпадений по имени:{" "}
-                {names.length - fresh.length}. Для однофамильцев укажите разные
-                подписи.
-              </p>
+              <p>{translate("ui.to.add")}{" "}{fresh.length}{" "}{translate("ui.matching.names")}{" "}{" "}
+                {names.length - fresh.length}{translate("ui.use.distinct.labels.for.students.with.matching.names")}</p>
               {!!fresh.length && (
                 <details>
-                  <summary>Проверить список</summary>
+                  <summary>{translate("ui.check.list")}</summary>
                   <ol>
                     {fresh.map((s) => (
                       <li key={s}>{s}</li>
@@ -189,18 +179,16 @@ export function RosterTools({
                     );
                     setMode("");
                     setMessage(
-                      "Добавлено: " +
+                      translate("Добавлено:") + " " +
                         r.added +
-                        ". Пропущено: " +
+                        translate(". Пропущено:") + " " +
                         r.skipped +
                         ".",
                     );
                     reload();
                   })
                 }
-              >
-                Добавить список
-              </button>
+              >{translate("ui.add.list")}</button>
             </>
           ) : (
             <>
@@ -213,11 +201,9 @@ export function RosterTools({
                       </p>
                     ))
                   ) : (
-                    <p>Пока класс ведёте только вы.</p>
+                    <p>{translate("ui.you.are.the.only.teacher.in.this.class")}</p>
                   )}
-                  <label className="t-field">
-                    Предмет
-                    <input
+                  <label className="t-field">{translate("ui.subject")}<input
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
                     />
@@ -225,9 +211,7 @@ export function RosterTools({
                 </>
               )}
               {mode === "share" && (
-                <label className="t-field">
-                  Урок
-                  <select
+                <label className="t-field">{translate("ui.lessonLabel")}<select
                     value={lesson}
                     onChange={(e) => setLesson(e.target.value)}
                   >
@@ -239,9 +223,7 @@ export function RosterTools({
                   </select>
                 </label>
               )}
-              <label className="t-field">
-                Почта преподавателя
-                <input
+              <label className="t-field">{translate("ui.teacher.email")}<input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -249,8 +231,8 @@ export function RosterTools({
               </label>
               <p>
                 {mode === "staff"
-                  ? "У преподавателя должна быть учётная запись Logus. Он получит список учеников и свой журнал."
-                  : "Коллега, который ведёт этот класс, получит отдельный черновик с материалом и вопросами."}
+                  ? translate("ui.the.teacher.needs.a.logus.account.they.will.get.the.class.roster.and.their.own.gradebook")
+                  : translate("ui.a.colleague.teaching.this.class.receives.a.separate.draft.with.materials.and.questions")}
               </p>
               <button
                 className="t-primary"
@@ -273,8 +255,8 @@ export function RosterTools({
                       });
                     setMessage(
                       mode === "staff"
-                        ? "Преподаватель назначен."
-                        : "Копия добавлена в уроки коллеги.",
+                        ? translate("ui.teacher.assigned")
+                        : translate("ui.copy.added.to.colleague.s.lessons"),
                     );
                     setMode("");
                     reload();
@@ -282,12 +264,12 @@ export function RosterTools({
                 }
               >
                 {mode === "staff"
-                  ? "Назначить преподавателя"
-                  : "Передать копию"}
+                  ? translate("ui.assign.teacher")
+                  : translate("ui.share.copy")}
               </button>
             </>
           )}
-          {message && <p role="alert">{message}</p>}
+          {message && <p role="alert">{translate(message)}</p>}
         </Overlay>
       )}
     </div>
@@ -303,6 +285,7 @@ export function ExportJournal({
   runs: AnyRow[];
   works: AnyRow[];
 }) {
+  useI18n();
   const [open, setOpen] = useState(false),
     [run, setRun] = useState(""),
     [from, setFrom] = useState(""),
@@ -322,15 +305,15 @@ export function ExportJournal({
     try {
       const writeExcel = (await import("write-excel-file/browser")).default;
       const header = [
-        "Ученик",
+        translate("Ученик"),
         ...selected.map(
           (r) =>
-            (r.kind === "warmup" ? "Разминка" : "Урок") +
+            (r.kind === "warmup" ? translate("Разминка") : translate("Урок")) +
             " · " +
             r.title +
             " · " +
             day(r.createdAt) +
-            " (из " +
+            " " + translate("(из") + " " +
             r.maxPoints +
             ")",
         ),
@@ -340,11 +323,11 @@ export function ExportJournal({
         s.name,
         ...selected.map((r) => {
           const w = cells.get(s.id + "/" + r.id);
-          if (!w) return "Не назначено";
+          if (!w) return translate("Не назначено");
           if (w.status === "graded") return w.score;
           return w.status === "pending"
-            ? "Ожидает проверки"
-            : "Не сдал · " + statusName(w.status);
+            ? translate("Ожидает проверки")
+            : translate("Не сдал ·") + " " + statusName(w.status);
         }),
       ]);
       await writeExcel(
@@ -353,12 +336,12 @@ export function ExportJournal({
           ...rows,
         ],
         {
-          sheet: "Журнал",
+          sheet: translate("Журнал"),
           columns: header.map(() => ({ width: 32 })),
           stickyRowsCount: 1,
           stickyColumnsCount: 1,
         },
-      ).toFile("Журнал " + group.name + ".xlsx");
+      ).toFile(translate("Журнал") + " " + group.name + ".xlsx");
       setOpen(false);
     } catch (e) {
       setError((e as Error).message);
@@ -372,15 +355,11 @@ export function ExportJournal({
         className="t-btn"
         disabled={!runs.length}
         onClick={() => setOpen(true)}
-      >
-        Скачать Excel
-      </button>
+      >{translate("ui.download.excel")}</button>
       {open && (
-        <Overlay title="Экспорт журнала" close={() => setOpen(false)}>
-          <label className="t-field">
-            Занятие
-            <select value={run} onChange={(e) => setRun(e.target.value)}>
-              <option value="">Все занятия</option>
+        <Overlay title={translate("ui.export.gradebook")} close={() => setOpen(false)}>
+          <label className="t-field">{translate("ui.lessonLabelLabel")}<select value={run} onChange={(e) => setRun(e.target.value)}>
+              <option value="">{translate("ui.all.lessons")}</option>
               {runs.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.title} · {day(r.createdAt)}
@@ -389,31 +368,27 @@ export function ExportJournal({
             </select>
           </label>
           <div className="t-actions">
-            <label className="t-field">
-              С даты
-              <input
+            <label className="t-field">{translate("ui.from.date")}<input
                 type="date"
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
               />
             </label>
-            <label className="t-field">
-              По дату
-              <input
+            <label className="t-field">{translate("ui.to.date")}<input
                 type="date"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
               />
             </label>
           </div>
-          <p>Занятий в файле: {selected.length}</p>
-          {error && <p role="alert">{error}</p>}
+          <p>{translate("ui.lessons.in.file")}{" "}{selected.length}</p>
+          {error && <p role="alert">{translate(error)}</p>}
           <button
             className="t-primary"
             disabled={busy || !selected.length}
             onClick={download}
           >
-            {busy ? "Создаём файл…" : "Скачать .xlsx"}
+            {busy ? translate("ui.creating.file") : translate("ui.download.xlsx")}
           </button>
         </Overlay>
       )}
@@ -430,21 +405,20 @@ export function LiveClassroom({
   reload: () => void;
   initialRun: string;
 }) {
+  useI18n();
   const [chosen, setChosen] = useState(initialRun),
     run = chosen || runs[0]?.id;
   return (
     <section className="t-card t-stack">
-      <h2>Урок идёт</h2>
+      <h2>{translate("ui.live.lesson")}</h2>
       {!run ? (
-        <p>Сначала назначьте урок группе.</p>
+        <p>{translate("ui.assign.a.lesson.to.the.class.first")}</p>
       ) : (
         <>
-          <label className="t-field">
-            Занятие
-            <select value={run} onChange={(e) => setChosen(e.target.value)}>
+          <label className="t-field">{translate("ui.lessonLabelLabel")}<select value={run} onChange={(e) => setChosen(e.target.value)}>
               {runs.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.title} · {new Date(r.createdAt).toLocaleString("ru-RU")}
+                  {r.title} · {formatDate(r.createdAt,true)}
                 </option>
               ))}
             </select>
@@ -456,6 +430,7 @@ export function LiveClassroom({
   );
 }
 function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
+  useI18n();
   const [data, setData] = useState<AnyRow | null>(null),
     [error, setError] = useState(""),
     [version, setVersion] = useState(0),
@@ -534,36 +509,24 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
   }
   return (
     <>
-      {error && <p role="alert">{error}</p>}
+      {error && <p role="alert">{translate(error)}</p>}
       {!data ? (
-        <p>Загружаем список…</p>
+        <p>{translate("ui.loading.list")}</p>
       ) : (
         <>
-          <p>
-            Назначено: {students.length} · Вошли в кабинет:{" "}
-            {
-              students.filter(
-                (s) => s.entered || s.opened || s.status !== "not_started",
-              ).length
-            }{" "}
-            · Открыли урок:{" "}
-            {
-              students.filter((s) => s.opened || s.status !== "not_started")
-                .length
-            }{" "}
-            · Начали задания:{" "}
-            {students.filter((s) => s.status !== "not_started").length} · Сдали:{" "}
-            {
-              students.filter((s) => ["pending", "graded"].includes(s.status))
-                .length
-            }
-          </p>
+          <p>{translate("test.liveCounts",undefined,{
+            assigned:students.length,
+            entered:students.filter(s=>s.entered||s.opened||s.status!=="not_started").length,
+            opened:students.filter(s=>s.opened||s.status!=="not_started").length,
+            started:students.filter(s=>s.status!=="not_started").length,
+            submitted:students.filter(s=>["pending","graded"].includes(s.status)).length,
+          })}</p>
           <div className="t-table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Ученик</th>
-                  <th>Ход работы</th>
+                  <th>{translate("ui.studentLabel")}</th>
+                  <th>{translate("ui.work.progress")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -573,10 +536,10 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
                     <td>
                       {s.status === "not_started"
                         ? s.opened
-                          ? "Открыл материал"
+                          ? translate("ui.opened.material")
                           : s.entered
-                            ? "Вошёл в кабинет"
-                            : "Ещё не открыл"
+                            ? translate("ui.signed.inLabel")
+                            : translate("ui.not.opened.yet")
                         : statusName(s.status)}
                     </td>
                   </tr>
@@ -586,10 +549,8 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
           </div>
           {!!question && (
             <>
-              <h3>Проверка по вопросу</h3>
-              <label className="t-field">
-                Открытый вопрос
-                <select
+              <h3>{translate("ui.review.by.question")}</h3>
+              <label className="t-field">{translate("ui.open.questionLabel")}<select
                   value={question.id}
                   disabled={busy}
                   onChange={(e) => {
@@ -605,9 +566,9 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
                   ))}
                 </select>
               </label>
-              <p>Критерий: {question.criterion}</p>
+              <p>{translate("ui.criterion")}{" "}{question.criterion}</p>
               <details>
-                <summary>Все сданные ответы на этот вопрос</summary>
+                <summary>{translate("ui.all.submitted.responses.to.this.question")}</summary>
                 {students
                   .filter(
                     (s) => s.status === "pending" || s.status === "graded",
@@ -615,11 +576,11 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
                   .map((s) => (
                     <div className="t-inset" key={s.id}>
                       <strong>{s.name}</strong>
-                      <p>{s.answers[question.id] || "Ответ не введён"}</p>
+                      <p>{s.answers[question.id] || translate("ui.no.response.entered")}</p>
                       <small>
                         {Object.hasOwn(s.points, question.id)
                           ? s.points[question.id] + " / " + question.maxPoints
-                          : "Ожидает проверки"}
+                          : translate("ui.awaiting.reviewLabelLabelLabelLabel")}
                       </small>
                     </div>
                   ))}
@@ -627,11 +588,10 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
               {pupil ? (
                 <div className="t-inset t-stack">
                   <strong>
-                    {pupil.name} · В очереди: {queue.length}
+                    {pupil.name}{" "}{translate("ui.in.queue")}{" "}{queue.length}
                   </strong>
-                  <p>{pupil.answers[question.id] || "Ответ не введён"}</p>
-                  <label className="t-field">
-                    Баллы из {question.maxPoints}
+                  <p>{pupil.answers[question.id] || translate("ui.no.response.entered")}</p>
+                  <label className="t-field">{translate("ui.points.out.of")}{" "}{question.maxPoints}
                     <input
                       type="number"
                       min="0"
@@ -642,9 +602,7 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
                       }
                     />
                   </label>
-                  <label className="t-field">
-                    Комментарий к ответу
-                    <textarea
+                  <label className="t-field">{translate("ui.response.feedback")}<textarea
                       maxLength={2000}
                       value={field.note}
                       onChange={(e) =>
@@ -661,12 +619,10 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
                       Number(field.score) > question.maxPoints
                     }
                     onClick={mark}
-                  >
-                    Подтвердить и перейти дальше
-                  </button>
+                  >{translate("ui.confirm.and.continue")}</button>
                 </div>
               ) : (
-                <p>Все сданные ответы на этот вопрос проверены.</p>
+                <p>{translate("ui.all.submitted.responses.to.this.question.have.been.reviewed")}</p>
               )}
               {markError && <p role="alert">{markError}</p>}
             </>

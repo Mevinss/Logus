@@ -5,11 +5,12 @@ import {
   scryptSync,
   timingSafeEqual,
 } from "node:crypto";
+import { validateSettings, type TestSettings } from "./test-policy";
 import { lanAddress } from "./lan-address.mjs";
 import { cloudStorage } from "./server-cloud.mjs";
 import { connect } from "./server-schema.mjs";
 
-export type Page = { id: number; text: string };
+export type Page = { id: number; text: string; documentId?: string; documentName?: string; sourcePage?: number; pdfUrl?: string | null };
 export type Question = {
   id: string;
   type: "choice" | "open";
@@ -21,8 +22,11 @@ export type Question = {
   skill: string;
   sourceId: number;
   quote: string;
+  explanation?: string;
+  optionExplanations?: string[];
 };
 export type Lesson = {
+  settings?: TestSettings;
   id: string;
   title: string;
   instruction: string;
@@ -294,6 +298,7 @@ export function saveLesson(l: Lesson, teacher: string) {
   return l;
 }
 export function editLesson(l: Lesson, data: Row) {
+  if ("settings" in data) l.settings = validateSettings(data.settings);
   if ("title" in data) l.title = required(data.title, 240);
   if ("instruction" in data) l.instruction = str(data.instruction, 20000);
   if ("text" in data) {

@@ -1,4 +1,6 @@
 "use client";
+import RunControls from "./RunControls";
+import { translate, formatDate, useI18n } from "./I18n";
 import {
   RosterTools,
   LiveClassroom,
@@ -23,13 +25,14 @@ export function CopyLink({
   url: string;
   label?: string;
 }) {
+  useI18n();
   const [state, setState] = useState("");
   return (
     <div className="t-copy">
       <input
         readOnly
         value={url}
-        aria-label={label}
+        aria-label={translate(label)}
         onFocus={(e) => e.target.select()}
       />
       <button
@@ -46,20 +49,21 @@ export function CopyLink({
               inp.select();
               if (!document.execCommand("copy")) throw Error();
             }
-            setState("Скопировано");
+            setState(translate("ui.copied"));
           } catch {
             inp.select();
-            setState("Нажмите Ctrl+C или выберите «Копировать»");
+            setState(translate("ui.press.ctrl.c.or.choose.copy"));
           }
         }}
       >
         <Icon n="link" size={15} />
-        {state || label}
+        {translate(state || label)}
       </button>
     </div>
   );
 }
 export function Score({ w }: { w: AnyRow }) {
+  useI18n();
   return (
     <span className={"t-status " + w.status}>
       {w.status === "graded"
@@ -77,6 +81,7 @@ export function WorkView({
   close: () => void;
   refresh: () => void;
 }) {
+  useI18n();
   const [d, setDetails] = useState<AnyRow | null>(null),
     [pts, setPoints] = useState<Record<string, number>>({}),
     [comment, setComment] = useState(""),
@@ -119,11 +124,11 @@ export function WorkView({
     }
   };
   return (
-    <Overlay title="Работа ученика" close={close}>
+    <Overlay title={translate("ui.student.work")} close={close}>
       <h3>
         {w.studentName} · {w.title}
       </h3>
-      {!d && !msg && <p>Загрузка работы…</p>}
+      {!d && !msg && <p>{translate("ui.loading.work")}</p>}
       {d && (
         <>
           <Score w={d.work} />
@@ -131,30 +136,27 @@ export function WorkView({
             const v = d.answers[q.id];
             return (
               <div className="t-inset t-stack" key={q.id}>
-                <div className="t-over">
-                  Вопрос {i + 1} · {q.skill}
+                <div className="t-over">{translate("ui.questionLabel")}{" "}{i + 1} · {q.skill}
                 </div>
                 <strong>{q.prompt}</strong>
-                <p>
-                  Ответ ученика:{" "}
+                <p>{translate("ui.student.answer")}{" "}{" "}
                   {v === undefined || v === ""
-                    ? "Нет ответа"
+                    ? translate("ui.no.answer")
                     : q.type === "choice"
                       ? q.options[Number(v)]
                       : v}
                 </p>
                 {q.type === "choice" ? (
-                  <p className="t-muted">
-                    Ключ: {q.options[q.correctIndex ?? 0]} · Баллы:{" "}
+                  <p className="t-muted">{translate("ui.answer.key")}{" "}{q.options[q.correctIndex ?? 0]}{translate("ui.points")}{" "}{" "}
                     {d.points[q.id] ?? "—"} / {q.maxPoints}
                   </p>
                 ) : (
                   <>
-                    <p className="t-muted">Критерий: {q.criterion}</p>
+                    <p className="t-muted">{translate("ui.criterion")}{" "}{q.criterion}</p>
                     {d.work.status === "pending" ? (
                       <>
                         <label className="t-field">
-                          <span>Баллы из {q.maxPoints}</span>
+                          <span>{translate("ui.points.out.of")}{" "}{q.maxPoints}</span>
                           <input
                             type="number"
                             min={0}
@@ -180,19 +182,14 @@ export function WorkView({
                             })
                           }
                         >
-                          <Icon n="spark" />
-                          Запросить подсказку ИИ
-                        </button>
+                          <Icon n="spark" />{translate("ui.request.ai.suggestion")}</button>
                         {suggest[q.id] && (
-                          <p>
-                            Предложение ИИ: {suggest[q.id].points} балл.
-                            Основание: «{suggest[q.id].evidence}»
+                          <p>{translate("ui.ai.suggestion")}{" "}{suggest[q.id].points}{translate("ui.points.evidence")}{" "}{suggest[q.id].evidence}»
                           </p>
                         )}
                       </>
                     ) : (
-                      <p>
-                        Баллы: {d.points[q.id] ?? "—"} / {q.maxPoints}
+                      <p>{translate("ui.pointsLabel")}{" "}{d.points[q.id] ?? "—"} / {q.maxPoints}
                       </p>
                     )}
                   </>
@@ -203,7 +200,7 @@ export function WorkView({
           {d.work.status === "pending" ? (
             <>
               <label className="t-field">
-                <span>Комментарий преподавателя</span>
+                <span>{translate("ui.teacher.feedback")}</span>
                 <textarea
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
@@ -224,7 +221,7 @@ export function WorkView({
                       )
                     )
                       throw Error(
-                        "Укажите допустимый балл для каждого открытого ответа.",
+                        translate("ui.enter.a.valid.score.for.each.open.response"),
                       );
                     const work = await api(url + "/grade", "POST", {
                       points: pts,
@@ -232,22 +229,20 @@ export function WorkView({
                     });
                     setDetails({ ...d, work, points: { ...d.points, ...pts } });
                     refresh();
-                    setMessage("Итог подтверждён.");
+                    setMessage(translate("ui.result.confirmed"));
                   })
                 }
-              >
-                Подтвердить итог
-              </button>
+              >{translate("ui.confirm.result")}</button>
             </>
           ) : (
-            d.work.comment && <p>Комментарий преподавателя: {d.work.comment}</p>
+            d.work.comment && <p>{translate("ui.teacher.feedbackLabel")}{" "}{d.work.comment}</p>
           )}
         </>
       )}
-      {busy && <p role="status">Обработка…</p>}
+      {busy && <p role="status">{translate("ui.processing")}</p>}
       {msg && (
         <p role="status" className="t-notice">
-          {msg}
+          {translate(msg)}
         </p>
       )}
     </Overlay>
@@ -264,6 +259,7 @@ function Warmup({
   close: () => void;
   done: () => void;
 }) {
+  useI18n();
   const [qs, setQuestions] = useState<Question[]>([]),
     [pages, setPages] = useState<Page[]>([]),
     [pdf, setPdfUrl] = useState(""),
@@ -300,12 +296,12 @@ function Warmup({
     }
   };
   return (
-    <Overlay title="Подготовить разминку" close={close}>
+    <Overlay title={translate("ui.prepare.practice")} close={close}>
       <p className="t-muted">
         {metric.skill} · {metric.prompt}
       </p>
       <label className="t-field">
-        <span>Название разминки</span>
+        <span>{translate("ui.practice.title")}</span>
         <input value={title} onChange={(e) => setTitle(e.target.value)} />
       </label>
       <div className="t-actions">
@@ -322,9 +318,7 @@ function Warmup({
             })
           }
         >
-          <Icon n="spark" />
-          Предложить задания с ИИ
-        </button>
+          <Icon n="spark" />{translate("ui.suggest.questions.with.ai")}</button>
         <button
           className="t-btn"
           disabled={!base || qs.length >= 2 || busy}
@@ -341,9 +335,7 @@ function Warmup({
                 },
               ]);
           }}
-        >
-          Добавить вручную
-        </button>
+        >{translate("ui.add.manually")}</button>
       </div>
       {qs.map((q, i) => (
         <QuestionEdit
@@ -358,13 +350,13 @@ function Warmup({
         />
       ))}
       <label className="t-field">
-        <span>Кому назначить</span>
+        <span>{translate("ui.assign.to")}</span>
         <select
           value={all ? "all" : "some"}
           onChange={(e) => setEntireGroup(e.target.value === "all")}
         >
-          <option value="all">Всей группе</option>
-          <option value="some">Выбранным ученикам</option>
+          <option value="all">{translate("ui.entire.class")}</option>
+          <option value="some">{translate("ui.selected.students")}</option>
         </select>
       </label>
       {!all &&
@@ -386,10 +378,10 @@ function Warmup({
         ))}
       {err && (
         <div className="t-notice" role="alert">
-          {err}
+          {translate(err)}
         </div>
       )}
-      {busy && <p>Обработка…</p>}
+      {busy && <p>{translate("ui.processing")}</p>}
       <button
         disabled={busy || !base}
         className="t-primary"
@@ -401,7 +393,7 @@ function Warmup({
               pages.map((p) => p.id),
             );
             if (!all && !ids.length)
-              throw Error("Выберите хотя бы одного ученика.");
+              throw Error(translate("ui.select.at.least.one.student"));
             await api(url, "POST", {
               questionId: metric.questionId,
               questions: qs,
@@ -411,9 +403,7 @@ function Warmup({
             done();
           })
         }
-      >
-        Назначить разминку
-      </button>
+      >{translate("ui.assign.practice")}</button>
     </Overlay>
   );
 }
@@ -432,6 +422,7 @@ export default function GroupView({
   liveRun: string;
   initialMetric?: AnyRow | null;
 }) {
+  useI18n();
   const [d, setDetails] = useState<AnyRow | null>(null),
     [tick, setRefreshTick] = useState(0),
     [tab, setTab] = useState(
@@ -490,10 +481,8 @@ export default function GroupView({
   if (!d)
     return (
       <>
-        <button className="t-back" onClick={back}>
-          ← Группы
-        </button>
-        <p>{err || "Загрузка группы…"}</p>
+        <button className="t-back" onClick={back}>{translate("ui.classesLabelLabelLabelLabel")}</button>
+        <p>{err || translate("ui.loading.class")}</p>
       </>
     );
   const g = d.group,
@@ -504,15 +493,13 @@ export default function GroupView({
   return (
     <>
       <button className="t-back" onClick={back}>
-        <Icon n="back" size={16} />
-        Группы
-      </button>
+        <Icon n="back" size={16} />{translate("ui.classes")}</button>
       <header className="t-heading">
         <div>
-          <div className="t-over">Учебная группа</div>
+          <div className="t-over">{translate("ui.classLabelLabelLabel")}</div>
           <h1>{g.name}</h1>
           <p>
-            {g.students.length} уч. · Назначено занятий: {runs.length}
+            {g.students.length}{" "}{translate("ui.students.assigned.lessons")}{" "}{runs.length}
           </p>
         </div>
       </header>
@@ -523,13 +510,13 @@ export default function GroupView({
             className={s === tab ? "active" : ""}
             onClick={() => setTab(s)}
           >
-            {s}
+            {translate(s)}
           </button>
         ))}
       </div>
       {err && (
         <p className="t-error" role="alert">
-          {err}
+          {translate(err)}
         </p>
       )}
       {success && <p className="t-notice">{success}</p>}
@@ -538,7 +525,7 @@ export default function GroupView({
       )}
       {tab === "Состав" && (
         <section className="t-card">
-          <h2>Участники группы</h2>
+          <h2>{translate("ui.class.members")}</h2>
           <RosterTools
             group={g}
             staff={d.staff}
@@ -567,24 +554,19 @@ export default function GroupView({
               }}
             >
               <label className="t-field">
-                <span>Имя или псевдоним ученика</span>
+                <span>{translate("ui.student.name.or.nickname")}</span>
                 <input
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Например, Мария Иванова"
+                  placeholder={translate("ui.for.example.alex.smith")}
                 />
               </label>
-              <button className="t-primary" disabled={busy}>
-                Добавить ученика
-              </button>
+              <button className="t-primary" disabled={busy}>{translate("ui.add.student")}</button>
             </form>
           )}
           {g.students.length === 0 && (
-            <Empty title="В группе пока нет учеников" icon="group">
-              После добавления участника появится индивидуальная ссылка для
-              входа.
-            </Empty>
+            <Empty title={translate("ui.no.students.in.this.class.yet")} icon="group">{translate("ui.a.personal.sign.in.link.appears.after.adding.a.member")}</Empty>
           )}
           {g.students.map((s: AnyRow) => (
             <div key={s.id} className="t-item">
@@ -603,9 +585,7 @@ export default function GroupView({
               </button>
               {g.managesRoster && (
                 <button className="t-btn sm t-end" onClick={() => setInvite(s)}>
-                  <Icon n="link" size={15} />
-                  Приглашение
-                </button>
+                  <Icon n="link" size={15} />{translate("ui.invitation")}</button>
               )}
             </div>
           ))}
@@ -613,40 +593,39 @@ export default function GroupView({
       )}
       {tab === "Занятия" && (
         <section className="t-card">
-          <h2>Назначенные занятия</h2>
+          <h2>{translate("ui.assigned.lessons")}</h2>
           {runs.length === 0 && (
-            <Empty title="Занятий пока нет">
-              Опубликуйте урок для этой группы.
-            </Empty>
+            <Empty title={translate("ui.no.lessons.yet")}>{translate("ui.publish.a.lesson.for.this.class")}</Empty>
           )}
           {runs.map((r) => (
             <div key={r.id} className="t-inset">
               <strong>{r.title}</strong>
               <p className="t-muted">
-                {r.kind === "warmup" ? "Разминка" : "Урок"} · Сдали{" "}
-                {r.submitted} из {r.assigned} ({r.completionPercent} %)
+                {r.kind === "warmup" ? translate("ui.practiceLabel") : translate("ui.lessonLabel")}{translate("ui.submitted")}{" "}{" "}
+                {r.submitted}{" "}{translate("ui.of")}{" "}{r.assigned} ({r.completionPercent} %)
               </p>
-              <CopyLink url={r.url} label="Ссылка на занятие" />
+              <CopyLink url={r.url} label={translate("ui.lesson.link")} /><RunControls run={r} refresh={reload}/>
+              <button className="t-btn" onClick={()=>{setRunId(r.id);setTab("Журнал")}}>{translate("test.viewWorks")}</button>
             </div>
           ))}
         </section>
       )}
       {tab === "Журнал" && (
         <section className="t-card">
-          <h2>Журнал группы</h2>
+          <h2>{translate("ui.class.gradebook")}</h2>
           <ExportJournal group={g} runs={runs} works={works} />
           {runs.length ? (
             <div className="t-table-scroll">
               <table>
                 <thead>
                   <tr>
-                    <th>Ученик</th>
+                    <th>{translate("ui.studentLabel")}</th>
                     {runs.map((r) => (
                       <th key={r.id}>
-                        {r.kind === "warmup" ? "Разминка · " : ""}
+                        {r.kind === "warmup" ? translate("ui.practice") : ""}
                         {r.title}
                         <small>
-                          {new Date(r.createdAt).toLocaleDateString("ru-RU")}
+                          {formatDate(r.createdAt)}
                         </small>
                       </th>
                     ))}
@@ -681,19 +660,17 @@ export default function GroupView({
               </table>
             </div>
           ) : (
-            <Empty title="Журнал пока пуст">
-              Здесь появятся результаты назначенных занятий.
-            </Empty>
+            <Empty title={translate("ui.gradebook.is.empty")}>{translate("ui.results.of.assigned.lessons.will.appear.here")}</Empty>
           )}
         </section>
       )}
       {tab === "Аналитика" && (
         <section className="t-card t-stack">
-          <h2>Аналитика группы</h2>
+          <h2>{translate("ui.class.analytics")}</h2>
           {chosen ? (
             <>
               <label className="t-field">
-                <span>Занятие</span>
+                <span>{translate("ui.lessonLabelLabel")}</span>
                 <select
                   value={chosen.id}
                   onChange={(e) => setRunId(e.target.value)}
@@ -701,17 +678,17 @@ export default function GroupView({
                   {runs.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.title} ·{" "}
-                      {new Date(r.createdAt).toLocaleDateString("ru-RU")}
+                      {formatDate(r.createdAt)}
                     </option>
                   ))}
                 </select>
               </label>
               <div className="t-numbers">
                 {[
-                  ["Получили", "assigned"],
-                  ["Начали", "started"],
-                  ["Сдали", "submitted"],
-                  ["На проверке", "pending"],
+                  [translate("ui.assigned"), "assigned"],
+                  [translate("ui.started"), "started"],
+                  [translate("ui.submittedLabel"), "submitted"],
+                  [translate("ui.awaiting.review"), "pending"],
                 ].map(([s, k]) => (
                   <div key={k}>
                     <b>{chosen[k]}</b>
@@ -719,11 +696,10 @@ export default function GroupView({
                   </div>
                 ))}
               </div>
-              <p>
-                Доля сдавших работу: {chosen.completionPercent} % (
-                {chosen.submitted} из {chosen.assigned}).
+              <p>{translate("ui.submission.rate")}{" "}{chosen.completionPercent} % (
+                {chosen.submitted}{" "}{translate("ui.of")}{" "}{chosen.assigned}).
               </p>
-              <h3>Ответы на вопросы</h3>
+              <h3>{translate("ui.question.responses")}</h3>
               {metrics
                 .filter((m) => m.runId === chosen.id)
                 .map((m) => (
@@ -735,12 +711,11 @@ export default function GroupView({
                     <div>
                       <strong>{m.prompt}</strong>
                       <small>
-                        {m.skill} · Ответили: {m.answered} · Проверено:{" "}
-                        {m.assessed} · Ожидают проверки: {m.pending}
+                        {m.skill}{" "}{translate("ui.answered")}{" "}{m.answered}{" "}{translate("ui.reviewedLabel")}{" "}{" "}
+                        {m.assessed}{" "}{translate("ui.awaiting.reviewLabelLabel")}{" "}{m.pending}
                         {m.assessed > 0 && (
                           <>
-                            {" "}
-                            · Полный балл: {m.correct} из {m.assessed} (
+                            {" "}{translate("ui.full.marksLabel")}{" "}{m.correct}{" "}{translate("ui.of")}{" "}{m.assessed} (
                             {m.correctPercent} %)
                           </>
                         )}
@@ -749,7 +724,7 @@ export default function GroupView({
                     <Icon n="chev" />
                   </button>
                 ))}
-              <h3>Навыки по всем занятиям</h3>
+              <h3>{translate("ui.skills.across.lessons")}</h3>
               {d.skills.map((s: AnyRow) => (
                 <details key={s.skill} className="t-inset">
                   <summary>
@@ -769,19 +744,16 @@ export default function GroupView({
               ))}
             </>
           ) : (
-            <Empty title="Пока нет назначенных занятий" />
+            <Empty title={translate("ui.no.assigned.lessons.yet")} />
           )}
         </section>
       )}
       {invite && (
         <Overlay
-          title="Индивидуальное приглашение"
+          title={translate("ui.personal.invitation")}
           close={() => setInvite(null)}
         >
-          <p>
-            Отправьте эту ссылку ученику «{invite.name}». Она открывает личный
-            кабинет и все назначенные занятия.
-          </p>
+          <p>{translate("ui.send.this.link.to.student")}{" "}{invite.name}{" "}{translate("ui.it.opens.their.workspace.and.assigned.lessons")}</p>
           <InviteQR url={invite.inviteUrl} />
           <CopyLink url={invite.inviteUrl} />
           <button
@@ -790,7 +762,7 @@ export default function GroupView({
             onClick={() => {
               if (
                 window.confirm(
-                  "Заменить приглашение? Старый QR-код перестанет работать, ученику потребуется войти заново.",
+                  translate("ui.replace.invitation.the.old.qr.code.will.stop.working.and.the.student.must.sign.in.again"),
                 )
               )
                 op(async () => {
@@ -804,15 +776,13 @@ export default function GroupView({
                   reload();
                 });
             }}
-          >
-            Заменить приглашение
-          </button>
-          {err && <p role="alert">{err}</p>}
+          >{translate("ui.replace.invitation")}</button>
+          {err && <p role="alert">{translate(err)}</p>}
         </Overlay>
       )}
       {person && (
         <Overlay title={person.name} close={() => setPerson(null)}>
-          <h3>История работ</h3>
+          <h3>{translate("ui.work.history")}</h3>
           {person.works.length ? (
             person.works.map((w: AnyRow) => (
               <button
@@ -828,9 +798,9 @@ export default function GroupView({
               </button>
             ))
           ) : (
-            <p>Пока нет работ.</p>
+            <p>{translate("ui.no.work.yet")}</p>
           )}
-          <h3>Баллы по навыкам</h3>
+          <h3>{translate("ui.points.by.skill")}</h3>
           {person.skills.map((s: AnyRow) => (
             <p key={s.skill}>
               {s.skill} · {s.earned} / {s.maxPoints} ({s.percent} %)
@@ -839,25 +809,19 @@ export default function GroupView({
         </Overlay>
       )}
       {metric && (
-        <Overlay title="Ответы на вопрос" close={() => setMetric(null)}>
+        <Overlay title={translate("ui.responses.to.question")} close={() => setMetric(null)}>
           <div className="t-over">{metric.skill}</div>
           <h3>{metric.prompt}</h3>
-          <p>
-            Ответили: {metric.answered}. Проверено: {metric.assessed}. Ожидают
-            проверки: {metric.pending}.
+          <p>{translate("ui.answeredLabel")}{" "}{metric.answered}{" "}{translate("ui.reviewedLabelLabel")}{" "}{metric.assessed}{" "}{translate("ui.awaiting.reviewLabelLabelLabel")}{" "}{metric.pending}.
             {metric.assessed > 0 && (
               <>
-                {" "}
-                Полный балл: {metric.correct} из {metric.assessed} проверенных (
-                {metric.correctPercent} %).
+                {" "}{translate("ui.full.marks")}{" "}{metric.correct}{" "}{translate("ui.of")}{" "}{metric.assessed}{" "}{translate("ui.reviewedLabelLabelLabel")}{" "}{metric.correctPercent} %).
               </>
             )}
           </p>
           {metric.wrongOption && (
-            <p>
-              Вариант «{metric.wrongOption}» выбрали {metric.wrongCount} из{" "}
-              {metric.answered} ответивших.
-            </p>
+            <p>{translate("ui.option")}{" "}{metric.wrongOption}{" "}{translate("ui.selected.by")}{" "}{metric.wrongCount}{" "}{translate("ui.of")}{" "}{" "}
+              {metric.answered}{" "}{translate("ui.respondents")}</p>
           )}
           {metric.works.map((w: AnyRow) => (
             <button
@@ -879,9 +843,7 @@ export default function GroupView({
               setWarmup(metric);
               setMetric(null);
             }}
-          >
-            Подготовить разминку
-          </button>
+          >{translate("ui.prepare.practice")}</button>
         </Overlay>
       )}
       {warm && (
@@ -892,7 +854,7 @@ export default function GroupView({
           done={() => {
             setWarmup(null);
             setSuccess(
-              "Разминка назначена. Результат появится отдельно в журнале.",
+              translate("ui.practice.assigned.its.result.will.appear.separately.in.the.gradebook"),
             );
             reload();
           }}

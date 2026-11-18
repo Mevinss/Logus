@@ -1,7 +1,10 @@
 "use client";
+import { translate } from "./I18n";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Brand from "./Brand";
+import Calendar from "./Calendar";
+import { useI18n } from "./I18n";
 import ScaleLab from "./ScaleLab";
 import {
   practiceRun,
@@ -13,6 +16,7 @@ import "./student.css";
 type Answers = Record<string, number | string>;
 type Status = "not_started" | "in_progress" | "pending" | "graded";
 type Item = {
+  resultsVisible?:boolean; expired?:boolean;
   subject?: string;
   runId: string;
   title: string;
@@ -34,6 +38,7 @@ type Question = {
   maxPoints: number;
   skill: string;
   sourceId: number;
+  correctIndex?:number|null; criterion?:string; explanation?:string; optionExplanations?:string[];
 };
 type Home = {
   name: string;
@@ -41,8 +46,9 @@ type Home = {
   skills: { skill: string; earned: number; maxPoints: number }[];
 };
 type Lesson = {
+  timing?:{durationMinutes:number|null;opensAt:string|null;dueAt:string|null;endsAt:number|null;startedAt:number|null;serverNow:number;expired:boolean;archived:boolean};
   item: Item;
-  pages: { id: number; text: string }[];
+  pages: { id: number; text: string;sourcePage?:number;pdfUrl?:string|null;documentName?:string }[];
   pdfUrl: string | null;
   questions: Question[];
   answers: Answers;
@@ -77,11 +83,11 @@ const statusText = {
   graded: "Проверено",
 };
 const completed = (s: Status) => s === "graded" || s === "pending";
-const kind = (item: Item) => (item.kind === "warmup" ? "Разминка" : "Урок");
+const kind = (item: Item) => (item.kind === "warmup" ? translate("Разминка") : translate("Урок"));
 const answered = (a: number | string | undefined) =>
   typeof a === "number" || !!a?.trim();
 function message(e: unknown) {
-  return e instanceof Error ? e.message : "Не удалось выполнить действие.";
+  return e instanceof Error ? e.message : translate("Не удалось выполнить действие.");
 }
 class SessionExpired extends Error {}
 async function requestStudent<T>(
@@ -102,13 +108,13 @@ async function requestStudent<T>(
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    throw new Error("Нет связи с сервером. Проверьте подключение.");
+    throw new Error(translate("Нет связи с сервером. Проверьте подключение."));
   }
   const data = await res.json().catch(() => ({}));
   if (res.status === 401)
-    throw new SessionExpired(data.error || "Сессия завершена.");
+    throw new SessionExpired(data.error || translate("Сессия завершена."));
   if (!res.ok)
-    throw new Error(data.error || "Не удалось получить данные с сервера.");
+    throw new Error(data.error || translate("Не удалось получить данные с сервера."));
   return data;
 }
 function loadQueue(key: string): Queue {
@@ -153,6 +159,9 @@ export default function Student({
     },
     [studentId, onSessionExpired],
   );
+  const {t,locale,timeZone}=useI18n();
+  const [calendar,setCalendar]=useState(false);
+  const [seconds,setSeconds]=useState<number|null>(null);
   const [run, setRun] = useState<string | null>(initialRun || null);
   const [home, setHome] = useState<Home | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -385,7 +394,8 @@ export default function Student({
     setBusy(true);
     setError("");
     try {
-      await api("/" + run + "/start", "POST", {});
+      const started=await api<{timing:Lesson["timing"]}>("/" + run + "/start", "POST", {});
+      setLesson(await api<Lesson>("/"+run));
       at(testPosition(posKey(run)) || 0);
       setView("test");
       window.scrollTo(0, 0);
@@ -437,6 +447,23 @@ export default function Student({
       setBusy(false);
     }
   }
+  useEffect(()=>{
+    if(view!=="test"||!run||!lesson?.timing?.endsAt)return;
+    let alive=true, polling=false;
+    const offset=lesson.timing.serverNow-Date.now();
+    const update=async()=>{
+      const remaining=Math.max(0,Math.ceil((lesson.timing!.endsAt!-Date.now()-offset)/1000));
+      if(alive)setSeconds(remaining);
+      if(remaining===0&&!polling){
+        polling=true;
+        try{const current=await api<Lesson>("/"+run);if(alive&&completed(current.item.status)){
+          delete queue.current[run];persist();setLesson(current);setAnswers(current.answers);setView("result");
+        }}catch(e){if(alive)setError(message(e))}finally{polling=false}
+      }
+    };
+    void update();const timer=setInterval(update,1000);
+    return()=>{alive=false;clearInterval(timer);setSeconds(null)};
+  },[view,run,lesson?.timing?.endsAt,api,persist]);
   const draft = run ? queue.current[run] || {} : {};
   const pending = Object.keys(draft).length;
   const pendingNumbers = lesson?.questions
@@ -453,16 +480,16 @@ export default function Student({
       <article className="st-card" key={item.runId}>
         <div className="st-split">
           <span className="st-tag">{kind(item)}</span>
-          <span className="st-status">{statusText[item.status]}</span>
+          <span className="st-status">{item.resultsVisible===false&&done?t("test.waitingTitle"):translate(statusText[item.status])}</span>
         </div>
         {item.subject && <small>{item.subject}</small>}
         <h3>{item.title}</h3>
         <div className="st-split">
-          {done ? (
+          {done && item.resultsVisible===false ? <span>{t("test.waitingTitle")}</span> : done ? (
             <span>
-              {item.status === "graded" ? "Итог" : "За проверенную часть"} ·{" "}
+              {item.status === "graded" ? translate("ui.result") : translate("ui.for.reviewed.questions")} ·{" "}
               <b>
-                {item.score ?? item.earned} из {item.gradedMaxPoints}
+                {item.score ?? item.earned}{" "}{translate("ui.of")}{" "}{item.gradedMaxPoints}
               </b>
             </span>
           ) : (
@@ -470,10 +497,10 @@ export default function Student({
           )}
           <button className="st-btn" onClick={() => navigate(item.runId)}>
             {done
-              ? "Открыть результат"
+              ? translate("ui.view.result")
               : item.kind === "warmup"
-                ? "Открыть разминку"
-                : "Открыть урок"}{" "}
+                ? translate("ui.open.practice")
+                : translate("ui.open.lesson")}{" "}
             →
           </button>
         </div>
@@ -487,51 +514,43 @@ export default function Student({
           <button
             className="st-brand"
             onClick={() => navigate(null)}
-            aria-label="Logus — мои занятия"
+            aria-label={translate("ui.logus.my.lessons")}
           >
             <Brand />
           </button>
-          <span className="st-role">Кабинет ученика</span>
-          <button className="st-ghost st-logout" onClick={onLogout}>
-            Выйти
-          </button>
+          <span className="st-role">{translate("ui.student.workspace")}</span>
+          <button className="st-ghost st-logout" onClick={onLogout}>{translate("ui.sign.out")}</button>
         </div>
       </header>
       <main className="st-main">
+        {view==="home"&&<button className="st-btn" onClick={()=>setCalendar(!calendar)}>{t(calendar?"test.close":"test.calendar")}</button>}
+        {view==="home"&&calendar&&<Calendar role="student"/>}
         {run && (
-          <button className="st-back" onClick={() => navigate(null)}>
-            ← Мои занятия
-          </button>
+          <button className="st-back" onClick={() => navigate(null)}>{translate("ui.my.lessonsLabel")}</button>
         )}
         {error && (
           <div className="st-error" role="alert">
-            {error}{" "}
-            <button className="st-link" onClick={() => setReload((n) => n + 1)}>
-              Обновить
-            </button>
+            {translate(error)}{" "}{" "}
+            <button className="st-link" onClick={() => setReload((n) => n + 1)}>{translate("ui.refresh")}</button>
           </div>
         )}
-        {view === "home" && (
+        {view === "home" && !calendar && (
           <>
             <div className="st-heading">
               <span className="st-sub">{name}</span>
-              <h1>Мои занятия</h1>
+              <h1>{translate("ui.my.lessonsLabelLabel")}</h1>
             </div>
-            <div className="st-tabs" role="tablist" aria-label="Занятия">
+            <div className="st-tabs" role="tablist" aria-label={translate("ui.lessonsLabelLabel")}>
               <button
                 role="tab"
                 aria-selected={tab === "active"}
                 onClick={() => setTab("active")}
-              >
-                Назначено
-              </button>
+              >{translate("ui.assignedLabelLabel")}</button>
               <button
                 role="tab"
                 aria-selected={tab === "history"}
                 onClick={() => setTab("history")}
-              >
-                История результатов
-              </button>
+              >{translate("ui.results.history")}</button>
             </div>
             {home ? (
               <>
@@ -545,25 +564,25 @@ export default function Student({
                     <div className="st-card">
                       <h3>
                         {tab === "active"
-                          ? "Пока нет назначенных занятий"
-                          : "Здесь появятся ваши результаты"}
+                          ? translate("ui.no.assigned.lessons.yet")
+                          : translate("ui.your.results.will.appear.here")}
                       </h3>
                       <p className="st-sub">
                         {tab === "active"
-                          ? "Когда преподаватель назначит урок или разминку, вы увидите их здесь."
-                          : "Сдайте первую работу, чтобы увидеть баллы и комментарий преподавателя."}
+                          ? translate("ui.lessons.and.practice.assigned.by.your.teacher.appear.here")
+                          : translate("ui.submit.your.first.work.to.see.scores.and.teacher.feedback")}
                       </p>
                     </div>
                   )}
                 </div>
                 {tab === "history" && home.skills.length > 0 && (
                   <section className="st-card">
-                    <h2>Баллы по навыкам</h2>
+                    <h2>{translate("ui.points.by.skill")}</h2>
                     {home.skills.map((s) => (
                       <div className="st-scoreline" key={s.skill}>
                         <span>{s.skill}</span>
                         <strong>
-                          {s.earned} из {s.maxPoints}
+                          {s.earned}{" "}{translate("ui.of")}{" "}{s.maxPoints}
                         </strong>
                       </div>
                     ))}
@@ -571,15 +590,15 @@ export default function Student({
                 )}
               </>
             ) : (
-              !error && <p role="status">Загружаем занятия…</p>
+              !error && <p role="status">{translate("ui.loading.lessons")}</p>
             )}
           </>
         )}
-        {run && !lesson && !error && <p role="status">Загружаем занятие…</p>}
+        {run && !lesson && !error && <p role="status">{translate("ui.loading.lesson")}</p>}
         {lesson && view === "lesson" && (
           <>
             <div className="st-heading">
-              <span className="st-sub">{kind(lesson.item)} · Материал</span>
+              <span className="st-sub">{kind(lesson.item)}{translate("ui.material")}</span>
               <h1>{lesson.item.title}</h1>
               {lesson.item.instruction && (
                 <p className="st-text">{lesson.item.instruction}</p>
@@ -587,16 +606,14 @@ export default function Student({
             </div>
             <section className="st-card">
               <div className="st-split">
-                <h2>Материал занятия</h2>
+                <h2>{translate("ui.lesson.material")}</h2>
                 {lesson.pdfUrl && (
                   <a
                     className="st-link"
                     href={lesson.pdfUrl}
                     target="_blank"
                     rel="noreferrer"
-                  >
-                    Открыть оригинал PDF ↗
-                  </a>
+                  >{translate("ui.open.original.pdf")}</a>
                 )}
               </div>
               {lesson.pages.map((p) => (
@@ -606,23 +623,27 @@ export default function Student({
                   id={"st-source-" + p.id}
                 >
                   <b className="st-fine">
-                    {lesson.pdfUrl ? "Страница " + p.id : run === practiceRun || lesson.item.parentId === practiceRun
-                      ? (p.id === 1 ? "Как читать масштаб" : p.id === 2 ? "Перевод в километры" : "Фрагмент " + p.id)
-                      : "Фрагмент " + p.id}
+                    {p.documentName&&<span>{p.documentName} · </span>}
+                    {p.pdfUrl ? translate("Страница") + " " + (p.sourcePage||p.id) : lesson.pdfUrl ? translate("Страница") + " " + p.id : run === practiceRun || lesson.item.parentId === practiceRun
+                      ? (p.id === 1 ? translate("ui.how.to.read.scale") : p.id === 2 ? translate("ui.convert.to.kilometres") : translate("Фрагмент") + " " + p.id)
+                      : translate("Фрагмент") + " " + p.id}
                   </b>
                   <p>{p.text}</p>
+                  {p.pdfUrl&&<a className="st-link" href={p.pdfUrl+"#page="+(p.sourcePage||p.id)} target="_blank" rel="noreferrer">PDF ↗</a>}
                 </article>
               ))}
             </section>
             {(run === practiceRun || lesson.review || lesson.item.parentId === practiceRun) && <ScaleLab />}
+            {lesson.timing?.durationMinutes&&<p className="st-note">{t("test.timerInfo",{minutes:lesson.timing.durationMinutes})}</p>}
+            {lesson.timing?.opensAt&&<p>{t("test.opens",{date:new Date(lesson.timing.opensAt).toLocaleString(locale,{timeZone})})}</p>}
+            {lesson.timing?.dueAt&&<p>{t("test.due",{date:new Date(lesson.timing.dueAt).toLocaleString(locale,{timeZone})})}</p>}
+            {lesson.timing?.archived&&<p>{t("test.archived")}</p>}
             <div className="st-row">
               {completed(lesson.item.status) ? (
-                <button className="st-btn" onClick={() => setView("result")}>
-                  Вернуться к результату
-                </button>
+                <button className="st-btn" onClick={() => setView("result")}>{translate("ui.back.to.result")}</button>
               ) : (
-                <button className="st-btn" disabled={busy} onClick={start}>
-                  {busy ? "Открываем задания…" : "Перейти к заданиям"} →
+                <button className="st-btn" disabled={busy||lesson.timing?.archived||Boolean(lesson.timing?.opensAt&&Date.parse(lesson.timing.opensAt)>Date.now())||Boolean(lesson.timing?.dueAt&&Date.parse(lesson.timing.dueAt)<=Date.now())} onClick={start}>
+                  {busy ? translate("ui.opening.tasks") : translate("ui.go.to.tasks")} →
                 </button>
               )}
             </div>
@@ -632,15 +653,14 @@ export default function Student({
           <>
             <div className="st-heading">
               <span className="st-sub">{lesson.item.title}</span>
-              <h1>Задания</h1>
+              <h1>{translate("ui.tasks")}</h1>
             </div>
+            {seconds!==null&&<div className="st-note" role="timer">{t("test.timeLeft",{time:Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0")})}{seconds<60&&<p role="status">{t("test.timeWarning")}</p>}</div>}
             <div className="st-question">
               <div className="st-split">
-                <b>
-                  Вопрос {position + 1} из {lesson.questions.length}
+                <b>{translate("ui.questionLabel")}{" "}{position + 1}{" "}{translate("ui.of")}{" "}{lesson.questions.length}
                 </b>
-                <span className="st-fine">
-                  Отвечено {count} из {lesson.questions.length}
+                <span className="st-fine">{translate("ui.answeredLabelLabel")}{" "}{count}{" "}{translate("ui.of")}{" "}{lesson.questions.length}
                 </span>
               </div>
               <div className="st-meter">
@@ -654,9 +674,9 @@ export default function Student({
             <section className="st-card" aria-labelledby="student-prompt">
               <div className="st-split">
                 <span className="st-tag green">
-                  {q.type === "choice" ? "Один вариант" : "Открытый ответ"}
+                  {q.type === "choice" ? translate("ui.single.choice") : translate("ui.open.response")}
                 </span>
-                <span className="st-fine">Макс. балл · {q.maxPoints}</span>
+                <span className="st-fine">{translate("ui.max.points")}{" "}{q.maxPoints}</span>
               </div>
               <h2 id="student-prompt">{q.prompt}</h2>
               {q.type === "choice" ? (
@@ -686,8 +706,8 @@ export default function Student({
                 <textarea
                   className="st-answer"
                   maxLength={12000}
-                  aria-label="Ваш ответ"
-                  placeholder="Напишите короткое объяснение…"
+                  aria-label={translate("ui.your.answer")}
+                  placeholder={translate("ui.write.a.short.explanation")}
                   value={answers[q.id] ?? ""}
                   disabled={busy}
                   onChange={(e) => answer(q.id, e.target.value)}
@@ -700,22 +720,17 @@ export default function Student({
               >
                 {pending
                   ? syncing
-                    ? "Сохраняем…"
-                    : "Ожидают сохранения · ответы № " + pendingNumbers
-                  : "Все ответы сохранены"}
+                    ? translate("ui.saving")
+                    : translate("Ожидают сохранения · ответы №") + " " + pendingNumbers
+                  : translate("ui.all.answers.saved")}
                 {pending > 0 && syncError && (
                   <div>
                     {syncError}{" "}
-                    <button className="st-link" onClick={() => void sync()}>
-                      Повторить сохранение
-                    </button>
+                    <button className="st-link" onClick={() => void sync()}>{translate("ui.retry.saving")}</button>
                   </div>
                 )}
                 {pending > 0 && localWarning && (
-                  <div>
-                    Хранилище браузера недоступно. Оставьте страницу открытой до
-                    сохранения.
-                  </div>
+                  <div>{translate("ui.browser.storage.unavailable.keep.this.page.open.until.answers.are.saved")}</div>
                 )}
               </div>
             </section>
@@ -725,18 +740,14 @@ export default function Student({
                   className="st-ghost"
                   disabled={busy}
                   onClick={() => at(position - 1)}
-                >
-                  ← Назад
-                </button>
+                >{translate("ui.back")}</button>
               )}
               {position < lesson.questions.length - 1 ? (
                 <button
                   className="st-btn"
                   disabled={busy}
                   onClick={() => at(position + 1)}
-                >
-                  Далее →
-                </button>
+                >{translate("ui.next")}</button>
               ) : (
                 <button
                   className="st-btn"
@@ -747,26 +758,22 @@ export default function Student({
                       : setConfirm(true)
                   }
                 >
-                  {busy ? "Отправляем…" : "Сдать работу"}
+                  {busy ? translate("ui.submitting") : translate("ui.submit.work")}
                 </button>
               )}
             </div>
             {confirm && (
               <div className="st-card">
-                <p>
-                  Без ответа осталось вопросов:{" "}
-                  {lesson.questions.length - count}. Сдать работу в таком виде?
-                </p>
-                <button className="st-btn" disabled={busy} onClick={submit}>
-                  Подтвердить сдачу
-                </button>
+                <p>{translate("ui.unanswered.questions")}{" "}{" "}
+                  {lesson.questions.length - count}{translate("ui.submit.anyway")}</p>
+                <button className="st-btn" disabled={busy} onClick={submit}>{translate("ui.confirm.submission")}</button>
               </div>
             )}
-            <nav className="st-index" aria-label="Номера вопросов">
+            <nav className="st-index" aria-label={translate("ui.question.numbers")}>
               {lesson.questions.map((v, i) => (
                 <button
                   key={v.id}
-                  aria-label={"Вопрос " + (i + 1)}
+                  aria-label={translate("Вопрос") + " " + (i + 1)}
                   aria-current={position === i ? "step" : undefined}
                   className={
                     (position === i ? "current " : "") +
@@ -781,72 +788,72 @@ export default function Student({
             </nav>
           </>
         )}
-        {lesson && view === "result" && (
+        {lesson && view === "result" && lesson.item.resultsVisible===false && <section className="st-card">
+          <h1>{t("test.waitingTitle")}</h1><p>{t("test.resultsWaiting")}</p>
+          {lesson.item.expired&&<p>{t("test.expired")}</p>}
+        </section>}
+        {lesson && view === "result" && lesson.item.resultsVisible!==false && (
           <>
             <div className="st-heading">
-              <span className="st-sub">{kind(lesson.item)} · Результат</span>
+              <span className="st-sub">{kind(lesson.item)}{translate("ui.resultLabel")}</span>
               <h1>{lesson.item.title}</h1>
             </div>
             <section className="st-card">
               <div className="st-split">
                 <h2>
                   {lesson.item.status === "pending"
-                    ? "За проверенную часть"
-                    : "Итоговый балл"}
+                    ? translate("ui.for.reviewed.questions")
+                    : translate("ui.final.score")}
                 </h2>
                 <span className="st-tag green">
-                  {statusText[lesson.item.status]}
+                  {translate(statusText[lesson.item.status])}
                 </span>
               </div>
               <div className="st-result">
                 <strong>{lesson.item.score ?? lesson.item.earned}</strong>
-                <span>
-                  из {lesson.item.gradedMaxPoints}{" "}
+                <span>{translate("ui.of")}{" "}{lesson.item.gradedMaxPoints}{" "}
                   {lesson.item.status === "pending"
-                    ? "за проверенные задания"
-                    : "за работу"}
+                    ? translate("ui.for.reviewed.questionsLabel")
+                    : translate("ui.for.this.work")}
                 </span>
               </div>
               {lesson.item.status === "pending" && (
-                <p className="st-sub">
-                  Максимум за всю работу — {lesson.item.maxPoints}. Итог
-                  появится после проверки открытого ответа.
-                </p>
+                <p className="st-sub">{translate("ui.maximum.total.score")}{" "}{lesson.item.maxPoints}{" "}{translate("ui.final.score.follows.review.of.the.open.response")}</p>
               )}
               {lesson.item.comment && (
                 <div className="st-note">
-                  <b>Комментарий преподавателя</b>
+                  <b>{translate("ui.teacher.feedback")}</b>
                   <p className="st-text">{lesson.item.comment}</p>
                 </div>
               )}
             </section>
             {lesson.review && (
               <section className="st-card st-review">
-                <h2>{lesson.review.rows.length ? "Работа над ошибками" : "Все три тестовых задания решены верно"}</h2>
+                <h2>{lesson.review.rows.length ? translate("ui.review.mistakes") : translate("ui.all.three.test.questions.answered.correctly")}</h2>
                 {lesson.review.rows.length > 0 && <>
                   <p>{lesson.review.rows[0].after === null
-                    ? "У каждого навыка ниже есть новая задача. Сравните результат после разминки."
-                    : "Баллы за одну задачу на тот же навык в двух попытках."}</p>
-                  <table><thead><tr><th>Навык</th><th>До</th><th>После</th></tr></thead>
+                    ? translate("ui.each.skill.below.has.a.new.task.compare.results.after.practice")
+                    : translate("ui.scores.for.one.task.testing.the.same.skill.across.two.attempts")}</p>
+                  <table><thead><tr><th>{translate("ui.skill")}</th><th>{translate("ui.before")}</th><th>{translate("ui.after")}</th></tr></thead>
                     <tbody>{lesson.review.rows.map(row => <tr key={row.label}>
                       <th scope="row">{row.label}</th><td>{row.before} / 1</td>
-                      <td>{row.after === null ? "Ещё нет" : row.after + " / 1"}</td>
+                      <td>{row.after === null ? translate("ui.not.yet") : row.after + " / 1"}</td>
                     </tr>)}</tbody></table>
                   {run === practiceRun && lesson.review.rows[0].after === null &&
                     <button className="st-btn" disabled={busy} onClick={openReview}>
-                      {busy ? "Открываем…" : "Перейти к разминке"} →
+                      {busy ? translate("ui.opening") : translate("ui.go.to.practice")} →
                     </button>}
                 </>}
               </section>
             )}
             {lessonSkills(lesson).length > 0 && (
               <section className="st-card">
-                <h2>Навыки в этой работе</h2>
+                <h2>{translate("ui.skills.in.this.work")}</h2>
                 {lessonSkills(lesson).map((s) => (
                   <div className="st-scoreline" key={s.skill}>
                     <span>{s.skill}</span>
                     <strong>
-                      {s.earned} из {s.maxPoints}
+                      {s.earned}{" "}{translate("ui.of")}{" "}{s.maxPoints}
                     </strong>
                   </div>
                 ))}
@@ -854,7 +861,7 @@ export default function Student({
             )}
             {lesson.warmups.length > 0 && (
               <section className="st-cards">
-                <h2>Разминки по этому уроку</h2>
+                <h2>{translate("ui.practice.for.this.lesson")}</h2>
                 {lesson.warmups.map(tile)}
               </section>
             )}
@@ -862,11 +869,10 @@ export default function Student({
               <button
                 className="st-link"
                 onClick={() => navigate(lesson.item.parentId)}
-              >
-                Открыть исходную работу
-              </button>
+              >{translate("ui.open.original.work")}</button>
             )}
-            <h2>Ответы на задания</h2>
+            {lesson.item.expired&&<p className="st-note">{t("test.expired")}</p>}
+            <h2>{translate("ui.task.responses")}</h2>
             {lesson.questions.map((v, i) => {
               const points = lesson.points[v.id],
                 waiting = v.type === "open" && lesson.item.status === "pending" && points == null,
@@ -874,33 +880,38 @@ export default function Student({
               return (
                 <article className="st-card" key={v.id}>
                   <div className="st-split">
-                    <span className="st-fine">Вопрос {i + 1}</span>
+                    <span className="st-fine">{translate("ui.questionLabel")}{" "}{i + 1}</span>
                     <b className="st-status">
                       {waiting
-                        ? "Ожидает проверки"
-                        : (points ?? 0) + " из " + v.maxPoints}
+                        ? translate("ui.awaiting.reviewLabelLabelLabelLabel")
+                        : (points ?? 0) + " " + translate("из") + " " + v.maxPoints}
                     </b>
                   </div>
                   <h3>{v.prompt}</h3>
                   <p className="st-text">
-                    <b>Ваш ответ · </b>
+                    <b>{translate("ui.your.answerLabel")}</b>
                     {answered(value)
                       ? v.type === "choice"
                         ? v.options[Number(value)]
                         : value
-                      : "Без ответа"}
+                      : translate("ui.unanswered")}
                   </p>
+                  {!waiting&&<div className="st-note">
+                    {v.type==="choice"&&typeof v.correctIndex==="number"&&<p><strong>{t("test.correct")}</strong> · {v.options[v.correctIndex]}</p>}
+                    {v.type==="open"&&v.criterion&&<p><strong>{t("test.criterion")}</strong> · {v.criterion}</p>}
+                    {v.explanation&&<p><strong>{t("test.why")}</strong> · {v.explanation}</p>}
+                    {v.type==="choice"&&typeof value==="number"&&v.optionExplanations?.[value]&&<p><strong>{t("test.yourOption")}</strong> · {v.optionExplanations[value]}</p>}
+                  </div>}
                   {!waiting && (points ?? 0) < v.maxPoints && (
                     <div className="st-note">
-                      <p>Повторите навык «{v.skill}»</p>
+                      <p>{translate("ui.review.the.skill")}{" "}{v.skill}»</p>
                       <button
                         className="st-link"
                         onClick={() => {
                           sourceTarget.current = v.sourceId;
                           setView("lesson");
                         }}
-                      >
-                        К материалу · {lesson.pdfUrl ? "страница" : "фрагмент"}{" "}
+                      >{translate("ui.to.material")}{" "}{lesson.pdfUrl ? translate("ui.pageLabel") : translate("ui.passageLabel")}{" "}
                         {v.sourceId} →
                       </button>
                     </div>
