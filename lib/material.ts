@@ -110,12 +110,17 @@ async function ask(
         "Нет связи с ИИ. Повторите запрос или продолжите вручную.",
       );
     }
-    if (!response.ok)
+    if (!response.ok) {
+      const failure = await response.json().catch(() => null);
+      if (failure?.error?.type === "insufficient_quota" ||
+          ["insufficient_quota", "credit_balance_exhausted"].includes(failure?.error?.code))
+        throw new Error("На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс в OpenAI Platform.");
       throw new Error(
         "Провайдер ИИ вернул ошибку (" +
           response.status +
           "). Повторите запрос или продолжите вручную.",
       );
+    }
     let value: any, usage: any;
     try {
       const json = await response.json();

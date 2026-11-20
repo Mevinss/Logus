@@ -1,5 +1,6 @@
 export const testMessages = {
   ru: {
+    "На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс в OpenAI Platform.":"На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс в OpenAI Platform.",
     "test.liveCounts":"Назначено: {assigned} · Вошли в кабинет: {entered} · Открыли урок: {opened} · Начали задания: {started} · Сдали: {submitted}",
     "Урок связан с расписанием. Сначала удалите привязку материала в событиях.":"Урок связан с расписанием. Сначала удалите привязку материала в событиях.",
     "Проверьте настройки теста.":"Проверьте настройки теста.",
@@ -41,6 +42,7 @@ export const testMessages = {
     "test.work":"Работа", "test.calendar":"Расписание", "test.close":"Закрыть расписание",
   },
   kk: {
+    "На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс в OpenAI Platform.":"ЖИ провайдерінің API кредиттері таусылды. OpenAI Platform балансын толтырыңыз.",
     "test.liveCounts":"Тағайындалды: {assigned} · Кабинетке кірді: {entered} · Сабақты ашты: {opened} · Тапсырманы бастады: {started} · Тапсырды: {submitted}",
     "Урок связан с расписанием. Сначала удалите привязку материала в событиях.":"Сабақ кестеге байланыстырылған. Алдымен оқиғалардағы материал сілтемесін алып тастаңыз.",
     "Проверьте настройки теста.":"Тест баптауларын тексеріңіз.",
@@ -82,6 +84,7 @@ export const testMessages = {
     "test.work":"Жұмыс", "test.calendar":"Кесте", "test.close":"Кестені жабу",
   },
   en: {
+    "На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс в OpenAI Platform.":"The AI provider's API credits are exhausted. Add credits in OpenAI Platform.",
     "test.liveCounts":"Assigned: {assigned} · Signed in: {entered} · Opened lesson: {opened} · Started tasks: {started} · Submitted: {submitted}",
     "Урок связан с расписанием. Сначала удалите привязку материала в событиях.":"This lesson is linked to the calendar. Remove its material links from the events first.",
     "Проверьте настройки теста.":"Check the test settings.",

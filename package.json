@@ -11,6 +11,8 @@
     "db:setup": "node --env-file-if-exists=.env.local scripts/setup.mjs",
     "test:api": "node scripts/test-api.mjs",
     "demo": "node --env-file-if-exists=.env.local scripts/example.mjs",
+    "demo:class": "node --env-file-if-exists=.env.local scripts/demo-class.mjs",
+    "test:demo": "node --test scripts/test-demo.mjs",
     "test:cloud": "node --test scripts/test-cloud.mjs",
     "test:authoring": "node --test tests/authoring.test.mjs"
   },

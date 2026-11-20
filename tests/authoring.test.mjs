@@ -219,6 +219,10 @@ test("generation validates options, rejects invented quote without caching then 
       opts,
     );
     assert.equal(calls, 2);
+    let quotaCalls=0;
+    globalThis.fetch=async()=>{quotaCalls++;return Response.json({error:{type:"insufficient_quota",code:"credit_balance_exhausted"}},{status:429})};
+    await assert.rejects(generateQuestions([{id:3,text:"Plants grow."}],undefined,undefined,undefined,{...opts,owner:"quota-owner"}),/Пополните баланс/);
+    assert.equal(quotaCalls,1,"Quota errors must not automatically retry paid requests");
   } finally {
     globalThis.fetch = originalFetch;
     delete process.env.OPENAI_API_KEY;

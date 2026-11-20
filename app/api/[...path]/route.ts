@@ -57,6 +57,7 @@ import {
 } from "../../../lib/server-report";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 const pdfLimitMiB = () => process.env.VERCEL === "1" ? 4 : 20;
 type Context = { params: Promise<{ path: string[] }> };

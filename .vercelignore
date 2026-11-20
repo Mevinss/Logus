@@ -8,5 +8,7 @@ data
 *.log
 node_modules
 test-results
+test-results-*
+backups
 playwright-report
 *.tsbuildinfo
