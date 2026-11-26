@@ -67,7 +67,7 @@ async function ask(
   operation = "generation",
   validate?: (value: any) => void,
 ) {
-  const key = process.env.OPENAI_API_KEY;
+  const key = process.env.AI_API_KEY || process.env.OPENAI_API_KEY;
   if (!key)
     throw new Error(
       "Ключ ИИ не настроен. Материал сохранён. Можно добавить задания вручную.",
@@ -111,10 +111,16 @@ async function ask(
       );
     }
     if (!response.ok) {
-      const failure = await response.json().catch(() => null);
+      const raw = await response.json().catch(() => null);
+      // Gemini's OpenAI-compatible endpoint may wrap the error in an array.
+      const failure = Array.isArray(raw) ? raw[0] : raw;
       if (failure?.error?.type === "insufficient_quota" ||
           ["insufficient_quota", "credit_balance_exhausted"].includes(failure?.error?.code))
-        throw new Error("На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс в OpenAI Platform.");
+        throw new Error("На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс у провайдера или подключите другой ключ.");
+      if (response.status === 429)
+        throw new Error("Превышен лимит запросов к ИИ. Подождите минуту и повторите.");
+      if (response.status === 401 || response.status === 403)
+        throw new Error("Провайдер ИИ не принял ключ. Проверьте ключ и адрес провайдера в настройках сервера.");
       throw new Error(
         "Провайдер ИИ вернул ошибку (" +
           response.status +
@@ -124,7 +130,12 @@ async function ask(
     let value: any, usage: any;
     try {
       const json = await response.json();
-      value = JSON.parse(json.choices[0].message.content);
+      // Some providers wrap JSON in a Markdown code fence despite json_object mode.
+      const text = String(json.choices[0].message.content)
+        .trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/, "");
+      value = JSON.parse(text);
       usage = json.usage;
     } catch {
       throw new Error("ИИ вернул нечитаемый ответ. Повторите генерацию.");
