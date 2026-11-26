@@ -1,4 +1,5 @@
 "use client";
+import { Skeleton } from "./Motion";
 import { translate, formatDate, useI18n } from "./I18n";
 import { useEffect, useState } from "react";
 import { AnyRow, Overlay, api, statusName } from "./teacher-ui";
@@ -445,11 +446,11 @@ function LiveChip({ s, total, max }: { s: AnyRow; total: number; max: number }) 
       : s.entered
         ? translate("ui.signed.inLabel")
         : translate("ui.not.opened.yet");
-    return <span className={"live-chip " + (s.opened || s.entered ? "is-seen" : "is-idle")}>{label}</span>;
+    return <span key={"n" + (s.opened ? 2 : s.entered ? 1 : 0)} className={"live-chip " + (s.opened || s.entered ? "is-seen" : "is-idle")}>{label}</span>;
   }
   if (s.status === "in_progress")
     return (
-      <span className="live-chip is-working">
+      <span key={"w" + (s.answered || 0)} className="live-chip is-working">
         {translate("live.answering", undefined, { done: s.answered || 0, total })}
         <i className="live-mini" aria-hidden="true">
           <b style={{ width: (total ? ((s.answered || 0) / total) * 100 : 0) + "%" }} />
@@ -459,12 +460,12 @@ function LiveChip({ s, total, max }: { s: AnyRow; total: number; max: number }) 
   if (s.status === "graded" && max) {
     const ratio = (s.score || 0) / max;
     return (
-      <span className={"live-chip is-graded " + (ratio >= 0.75 ? "is-high" : ratio >= 0.5 ? "is-mid" : "is-low")}>
+      <span key={"g" + s.score} className={"live-chip is-graded " + (ratio >= 0.75 ? "is-high" : ratio >= 0.5 ? "is-mid" : "is-low")}>
         ✓ {statusName(s.status)} · {s.score} / {max}
       </span>
     );
   }
-  return <span className="live-chip is-pending">✓ {translate("live.submitted")} · {statusName(s.status)}</span>;
+  return <span key="p" className="live-chip is-pending">✓ {translate("live.submitted")} · {statusName(s.status)}</span>;
 }
 function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
   useI18n();
@@ -548,7 +549,7 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
     <>
       {error && <p role="alert">{translate(error)}</p>}
       {!data ? (
-        <p>{translate("ui.loading.list")}</p>
+        <Skeleton label={translate("ui.loading.list")} rows={5} />
       ) : (
         <>
           {(() => {
