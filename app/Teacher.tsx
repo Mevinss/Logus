@@ -376,7 +376,7 @@ export default function Teacher({
                           " " +
                           countWord(lessons.length, [
                             translate("урок"),
-                            translate("уроков"),
+                            translate("ui.lessonsFew"),
                             translate("уроков"),
                           ])}
                     </p>

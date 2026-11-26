@@ -202,6 +202,7 @@ export const initials = (s: string) =>
   s
     .trim()
     .split(/\s+/)
+    .filter((x) => /^[\p{L}\p{N}]/u.test(x))
     .slice(0, 2)
     .map((x) => x.charAt(0))
     .join("")
