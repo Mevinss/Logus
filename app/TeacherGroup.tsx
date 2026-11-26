@@ -1,5 +1,6 @@
 "use client";
 import RunControls from "./RunControls";
+import { QuestionChart, ScoreChart } from "./Charts";
 import { translate, formatDate, useI18n } from "./I18n";
 import {
   RosterTools,
@@ -699,13 +700,14 @@ export default function GroupView({
               <p>{translate("ui.submission.rate")}{" "}{chosen.completionPercent} % (
                 {chosen.submitted}{" "}{translate("ui.of")}{" "}{chosen.assigned}).
               </p>
+              <ScoreChart run={chosen} />
               <h3>{translate("ui.question.responses")}</h3>
               {metrics
                 .filter((m) => m.runId === chosen.id)
                 .map((m) => (
+                  <div className="t-inset chart-card" key={m.questionId}>
                   <button
                     className="t-linebtn"
-                    key={m.questionId}
                     onClick={() => setMetric(m)}
                   >
                     <div>
@@ -723,6 +725,8 @@ export default function GroupView({
                     </div>
                     <Icon n="chev" />
                   </button>
+                  <QuestionChart metric={m} />
+                  </div>
                 ))}
               <h3>{translate("ui.skills.across.lessons")}</h3>
               {d.skills.map((s: AnyRow) => (
@@ -819,6 +823,7 @@ export default function GroupView({
               </>
             )}
           </p>
+          <QuestionChart metric={metric} />
           {metric.wrongOption && (
             <p>{translate("ui.option")}{" "}{metric.wrongOption}{" "}{translate("ui.selected.by")}{" "}{metric.wrongCount}{" "}{translate("ui.of")}{" "}{" "}
               {metric.answered}{" "}{translate("ui.respondents")}</p>

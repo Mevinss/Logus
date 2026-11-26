@@ -334,6 +334,22 @@ function metrics(r: Row, rows: Row[]) {
       wrongCount: top?.[1] || 0,
       works: answered.map((s) => s.w),
       incorrect: wrong.length,
+      // Answer distribution for the chart: every option for a choice question,
+      // every possible score for an open one.
+      type: q.type,
+      maxPoints: q.maxPoints,
+      chart:
+        q.type === "choice"
+          ? q.options.map((label, i) => ({
+              label,
+              count: answered.filter((s) => s.a[q.id] === i).length,
+              correct: i === q.correctIndex,
+            }))
+          : Array.from({ length: q.maxPoints + 1 }, (_, n) => ({
+              label: String(n),
+              count: assessed.filter((s) => Math.round(s.p[q.id]) === n).length,
+              correct: n === q.maxPoints,
+            })),
     };
   });
 }
