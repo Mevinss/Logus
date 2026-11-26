@@ -1,4 +1,5 @@
 import { profileDispatch } from "../../../lib/profile";
+import { createDemoTeacher } from "../../../lib/demo-teacher";
 import { calendarDispatch } from "../../../lib/calendar";
 import { retrieveContext } from "../../../lib/rag";
 import { defaultTestSettings, publishResults, settings, settleExpired } from "../../../lib/test-policy";
@@ -160,6 +161,11 @@ async function dispatch(req: Request, parts: string[]) {
     const fresh = one("SELECT status FROM assignments WHERE run=? AND student=?","public-map-v1",studentId)?.status === "not_started";
     const signed=signIn(req,"student",{id:studentId,name});
     return Response.json({id:studentId,name,fresh},{headers:signed.headers});
+  }
+  if (resource === "demo-teacher" && is("POST", 1)) {
+    if (process.env.LOGUS_DEMO_TEACHERS === "0") fail(404, "Демо-кабинет отключён.");
+    limitPracticeSignups(req);
+    return signIn(req, "teacher", createDemoTeacher(baseUrl(req)));
   }
   if (resource === "join" && is("POST", 1)) {
     const b = await input(req),

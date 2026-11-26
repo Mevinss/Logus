@@ -88,6 +88,24 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
       setBusy(false);
     }
   }
+  async function tryDemo() {
+    setError("");
+    setBusy(true);
+    try {
+      const res = await fetch("/api/demo-teacher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const data = await res.json();
+      if (!res.ok) throw Error(data.error || translate("Не удалось войти."));
+      setUser(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : translate("Проверьте соединение."));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function logout() {
     try {
       const r = await fetch("/api/logout", {
@@ -241,6 +259,12 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
                 {busy ? translate("ui.signing.in") : translate("ui.sign.in")}
                 <span aria-hidden="true">→</span>
               </button>
+              <div className="entry-demo">
+                <button type="button" className="entry-demo-btn" disabled={busy} onClick={tryDemo}>
+                  {t("demo.try")} <span aria-hidden="true">→</span>
+                </button>
+                <small>{t("demo.note")}</small>
+              </div>
             </form>
           )}
         </section>

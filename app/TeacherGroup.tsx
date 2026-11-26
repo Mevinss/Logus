@@ -1,6 +1,6 @@
 "use client";
 import RunControls from "./RunControls";
-import { QuestionChart, ScoreChart } from "./Charts";
+import { QuestionChart, ScoreChart, Verdict } from "./Charts";
 import { translate, formatDate, useI18n } from "./I18n";
 import {
   RosterTools,
@@ -136,8 +136,9 @@ export function WorkView({
           {d.questions.map((q: Question, i: number) => {
             const v = d.answers[q.id];
             return (
-              <div className="t-inset t-stack" key={q.id}>
-                <div className="t-over">{translate("ui.questionLabel")}{" "}{i + 1} · {q.skill}
+              <div className={"t-inset t-stack answer-card" + (d.points[q.id] == null ? "" : d.points[q.id] >= q.maxPoints ? " is-correct" : d.points[q.id] <= 0 ? " is-wrong" : " is-partial")} key={q.id}>
+                <div className="t-over answer-head">{translate("ui.questionLabel")}{" "}{i + 1} · {q.skill}
+                  <Verdict points={d.points[q.id]} max={q.maxPoints} />
                 </div>
                 <strong>{q.prompt}</strong>
                 <p>{translate("ui.student.answer")}{" "}{" "}

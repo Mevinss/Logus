@@ -1,7 +1,7 @@
 /* Logus design layer: warm print palette, illustrations and motion.
    Loaded after theme.css; every animation is disabled by the reduced-motion rule in theme.css. */
-:root{color-scheme:light;--canvas:#f6f3ea;--surface:#fffdf7;--subtle:#ece8da;--text:#1f3a30;--muted:#5b695f;--border:#ddd6c4;--accent:#1f5743;--accent-strong:#153f36;--on-accent:#fbf7ea;--warm:#c8693f;--warm-soft:#f6e3d6;--gold:#d7b37e;--hero:#1d4b3d;--hero-text:#f9f4e4;--hero-muted:#cfdcc8;--brand-tile:#214f40;--danger:#a13929;--lift:0 14px 30px -18px rgba(31,58,48,.45);--ease:cubic-bezier(.2,.8,.2,1)}
-:root[data-theme=dark]{color-scheme:dark;--canvas:#0f1714;--surface:#16211c;--subtle:#203029;--text:#edf2ea;--muted:#a9b8ab;--border:#2e4037;--accent:#8fcca6;--accent-strong:#b5e0c4;--on-accent:#10211a;--warm:#e88e64;--warm-soft:#3b2a21;--gold:#e2c48e;--hero:#183d31;--hero-text:#f4efdf;--hero-muted:#b8cbbb;--brand-tile:#2a6150;--danger:#ffb39f;--lift:0 16px 34px -18px rgba(0,0,0,.7)}
+:root{--good:#2f7a4f;--bad:#b4432f;color-scheme:light;--canvas:#f6f3ea;--surface:#fffdf7;--subtle:#ece8da;--text:#1f3a30;--muted:#5b695f;--border:#ddd6c4;--accent:#1f5743;--accent-strong:#153f36;--on-accent:#fbf7ea;--warm:#c8693f;--warm-soft:#f6e3d6;--gold:#d7b37e;--hero:#1d4b3d;--hero-text:#f9f4e4;--hero-muted:#cfdcc8;--brand-tile:#214f40;--danger:#a13929;--lift:0 14px 30px -18px rgba(31,58,48,.45);--ease:cubic-bezier(.2,.8,.2,1)}
+:root[data-theme=dark]{--good:#7fd09d;--bad:#ff9c86;color-scheme:dark;--canvas:#0f1714;--surface:#16211c;--subtle:#203029;--text:#edf2ea;--muted:#a9b8ab;--border:#2e4037;--accent:#8fcca6;--accent-strong:#b5e0c4;--on-accent:#10211a;--warm:#e88e64;--warm-soft:#3b2a21;--gold:#e2c48e;--hero:#183d31;--hero-text:#f4efdf;--hero-muted:#b8cbbb;--brand-tile:#2a6150;--danger:#ffb39f;--lift:0 16px 34px -18px rgba(0,0,0,.7)}
 html,body{background:var(--canvas)}
 :root .teacher{--terra:var(--warm);background:var(--canvas)}
 :root .st-app{background:var(--canvas)}
@@ -225,10 +225,27 @@ html,body{background:var(--canvas)}
 :root .chart-label{overflow-wrap:anywhere;font-size:.92rem}
 :root .chart-track{height:14px;background:color-mix(in srgb,var(--border) 55%,transparent);border-radius:4px;overflow:hidden}
 :root .chart-fill{display:block;height:100%;background:color-mix(in srgb,var(--muted) 55%,var(--surface));border-radius:0 4px 4px 0;transform-origin:left;animation:chart-grow .7s var(--ease) both}
-:root .chart-bars li.is-correct .chart-fill,:root .chart-bars.is-solid .chart-fill{background:var(--accent)}
+:root .chart-bars.is-solid .chart-fill{background:var(--accent)}:root .chart-bars li.is-correct .chart-fill{background:var(--good)}:root .chart-bars li.is-wrong .chart-fill{background:var(--bad)}:root .chart-bars li.is-correct .chart-mark{color:var(--good)}:root .chart-bars li.is-wrong .chart-mark{color:var(--bad)}
 :root .chart-bars li.is-correct .chart-label{font-weight:600}
 :root .chart-value{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
 :root .chart-value small{font-weight:400;color:var(--muted)}
 @keyframes chart-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @media (prefers-reduced-motion:reduce){:root .chart-fill{animation:none}}
 @media (max-width:560px){:root .chart-bars li{grid-template-columns:1fr auto;row-gap:4px}:root .chart-track{grid-column:1/-1;grid-row:2}}
+
+:root .chart-legend{display:flex;flex-wrap:wrap;gap:14px;margin:0;font-size:.8rem;color:var(--muted)}
+:root .chart-legend .is-correct{color:var(--good);font-weight:600}
+:root .chart-legend .is-wrong{color:var(--bad);font-weight:600}
+:root .answer-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+:root .answer-card.is-correct{box-shadow:inset 4px 0 0 var(--good)}
+:root .answer-card.is-wrong{box-shadow:inset 4px 0 0 var(--bad)}
+:root .answer-card.is-partial{box-shadow:inset 4px 0 0 var(--gold)}
+:root .verdict{display:inline-flex;align-items:center;gap:2px;border-radius:999px;padding:2px 10px;font-size:.78rem;font-weight:600;letter-spacing:0;text-transform:none;white-space:nowrap}
+:root .verdict.is-correct{color:var(--good);background:color-mix(in srgb,var(--good) 14%,var(--surface))}
+:root .verdict.is-wrong{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,var(--surface))}
+:root .verdict.is-partial{color:var(--text);background:color-mix(in srgb,var(--gold) 30%,var(--surface))}
+
+:root .entry-demo{display:grid;gap:6px;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border)}
+:root .entry-demo-btn{appearance:none;border:1px solid var(--accent);background:transparent;color:var(--accent);border-radius:12px;padding:12px 16px;font:inherit;font-weight:600;cursor:pointer;transition:background .2s var(--ease)}
+:root .entry-demo-btn:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+:root .entry-demo small{color:var(--muted);font-size:.8rem;line-height:1.4}
