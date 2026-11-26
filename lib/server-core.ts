@@ -62,6 +62,8 @@ export function run(sql: string, ...args: Bind[]) {
 }
 export function transaction<T>(fn: () => T) {
   const { db } = storage();
+  // Nested calls join the transaction that is already open.
+  if (db.isTransaction) return fn();
   db.exec("BEGIN IMMEDIATE");
   try {
     const result = fn();

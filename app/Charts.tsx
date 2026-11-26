@@ -2,11 +2,11 @@
 import { useI18n } from "./I18n";
 import type { AnyRow } from "./teacher-ui";
 
-type Bar = { label: string; count: number; correct?: boolean };
+type Bar = { label: string; count: number; correct?: boolean; wrong?: boolean };
 
 // Horizontal bars in the style of a survey summary: one row per option with
-// its count and share. The right answer wears the accent colour and a check
-// mark, every other bar stays neutral, so meaning never rests on colour alone.
+// its count and share. The right answer is green with a check mark, a wrong
+// answer is red with a cross, so meaning never rests on colour alone.
 export function Bars({ bars, total, unit, solid }: { bars: Bar[]; total: number; unit?: string; solid?: boolean }) {
   const max = Math.max(1, ...bars.map((b) => b.count));
   return (
@@ -14,9 +14,10 @@ export function Bars({ bars, total, unit, solid }: { bars: Bar[]; total: number;
       {bars.map((b, i) => {
         const share = total ? Math.round((100 * b.count) / total) : 0;
         return (
-          <li key={i} className={b.correct ? "is-correct" : undefined} title={`${b.label}: ${b.count} (${share} %)`}>
+          <li key={i} className={b.correct ? "is-correct" : b.wrong ? "is-wrong" : undefined} title={`${b.label}: ${b.count} (${share} %)`}>
             <span className="chart-label">
-              {b.correct && <span aria-hidden="true">✓ </span>}
+              {b.correct && <span className="chart-mark" aria-label="✓">✓ </span>}
+              {b.wrong && <span className="chart-mark" aria-label="✗">✗ </span>}
               {unit ? `${b.label} ${unit}` : b.label}
             </span>
             <span className="chart-track">
@@ -41,7 +42,19 @@ export function QuestionChart({ metric }: { metric: AnyRow }) {
   return (
     <figure className="chart">
       <figcaption>{open ? t("chart.scores", { max: metric.maxPoints }) : t("chart.options", { count: total })}</figcaption>
-      <Bars bars={metric.chart} total={total} unit={open ? t("chart.pointsShort") : undefined} />
+      <Bars
+        bars={metric.chart.map((b: Bar, i: number) => ({
+          ...b,
+          wrong: open ? i === 0 : !b.correct,
+        }))}
+        total={total}
+        unit={open ? t("chart.pointsShort") : undefined}
+      />
+      <p className="chart-legend">
+        <span className="is-correct">✓ {t("verdict.correct")}</span>
+        <span className="is-wrong">✗ {t("verdict.wrong")}</span>
+        {open && <span>{t("verdict.partial")}</span>}
+      </p>
     </figure>
   );
 }
@@ -58,5 +71,18 @@ export function ScoreChart({ run }: { run: AnyRow }) {
         solid
       />
     </figure>
+  );
+}
+
+// Per-answer verdict shown beside a student's answer, for teacher and student.
+export function Verdict({ points, max }: { points: number | null | undefined; max: number }) {
+  const { t } = useI18n();
+  if (points === null || points === undefined) return null;
+  const kind = points >= max ? "correct" : points <= 0 ? "wrong" : "partial";
+  return (
+    <span className={"verdict is-" + kind}>
+      {kind === "correct" ? "✓ " : kind === "wrong" ? "✗ " : "◐ "}
+      {t("verdict." + kind)}
+    </span>
   );
 }

@@ -1,5 +1,7 @@
 export const testMessages = {
   ru: {
+    "demo.try":"Попробовать без регистрации", "demo.note":"Откроется отдельный демо-кабинет с классом из 5 вымышленных учеников и готовым уроком. Пароль не нужен.",
+    "verdict.correct":"Верно", "verdict.wrong":"Неверно", "verdict.partial":"Частично",
     "chart.noAnswers":"Ответов пока нет.", "chart.options":"Выбор вариантов · ответов: {count}", "chart.scores":"Баллы за открытый ответ (из {max})", "chart.pointsShort":"б.", "chart.results":"Результаты класса · проверено работ: {count} · средний результат {percent} %",
     "На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс у провайдера или подключите другой ключ.":"На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс у провайдера или подключите другой ключ.", "Превышен лимит запросов к ИИ. Подождите минуту и повторите.":"Превышен лимит запросов к ИИ. Подождите минуту и повторите.", "Провайдер ИИ не принял ключ. Проверьте ключ и адрес провайдера в настройках сервера.":"Провайдер ИИ не принял ключ. Проверьте ключ и адрес провайдера в настройках сервера.",
     "test.liveCounts":"Назначено: {assigned} · Вошли в кабинет: {entered} · Открыли урок: {opened} · Начали задания: {started} · Сдали: {submitted}",
@@ -43,6 +45,8 @@ export const testMessages = {
     "test.work":"Работа", "test.calendar":"Расписание", "test.close":"Закрыть расписание",
   },
   kk: {
+    "demo.try":"Тіркелусіз байқап көру", "demo.note":"5 ойдан шығарылған оқушысы бар сынып пен дайын сабағы бар жеке демо-кабинет ашылады. Құпиясөз қажет емес.",
+    "verdict.correct":"Дұрыс", "verdict.wrong":"Қате", "verdict.partial":"Ішінара",
     "chart.noAnswers":"Әзірге жауап жоқ.", "chart.options":"Нұсқаларды таңдау · жауаптар: {count}", "chart.scores":"Ашық жауап ұпайлары ({max} ішінен)", "chart.pointsShort":"ұп.", "chart.results":"Сынып нәтижелері · тексерілген жұмыстар: {count} · орташа нәтиже {percent} %",
     "На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс у провайдера или подключите другой ключ.":"ЖИ провайдерінің API кредиттері таусылды. Провайдердегі балансты толтырыңыз немесе басқа кілт қосыңыз.", "Превышен лимит запросов к ИИ. Подождите минуту и повторите.":"ЖИ сұраныстарының лимиті асып кетті. Бір минут күтіп, қайталаңыз.", "Провайдер ИИ не принял ключ. Проверьте ключ и адрес провайдера в настройках сервера.":"ЖИ провайдері кілтті қабылдамады. Сервер баптауларындағы кілт пен провайдер мекенжайын тексеріңіз.",
     "test.liveCounts":"Тағайындалды: {assigned} · Кабинетке кірді: {entered} · Сабақты ашты: {opened} · Тапсырманы бастады: {started} · Тапсырды: {submitted}",
@@ -86,6 +90,8 @@ export const testMessages = {
     "test.work":"Жұмыс", "test.calendar":"Кесте", "test.close":"Кестені жабу",
   },
   en: {
+    "demo.try":"Try without signing up", "demo.note":"Opens a private demo workspace with a class of 5 fictional students and a ready lesson. No password needed.",
+    "verdict.correct":"Correct", "verdict.wrong":"Wrong", "verdict.partial":"Partly correct",
     "chart.noAnswers":"No answers yet.", "chart.options":"Option choices · responses: {count}", "chart.scores":"Open answer points (out of {max})", "chart.pointsShort":"pts", "chart.results":"Class results · graded: {count} · average {percent}%",
     "На счёте ИИ-провайдера закончились API-кредиты. Пополните баланс у провайдера или подключите другой ключ.":"The AI provider's API credits are exhausted. Add credits with the provider or connect another key.", "Превышен лимит запросов к ИИ. Подождите минуту и повторите.":"AI request limit reached. Wait a minute and try again.", "Провайдер ИИ не принял ключ. Проверьте ключ и адрес провайдера в настройках сервера.":"The AI provider rejected the key. Check the key and provider URL in the server settings.",
     "test.liveCounts":"Assigned: {assigned} · Signed in: {entered} · Opened lesson: {opened} · Started tasks: {started} · Submitted: {submitted}",

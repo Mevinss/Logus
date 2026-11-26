@@ -4,6 +4,7 @@ import { translate } from "./I18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Brand from "./Brand";
 import Calendar from "./Calendar";
+import { Verdict } from "./Charts";
 import { useI18n } from "./I18n";
 import ScaleLab from "./ScaleLab";
 import {
@@ -878,9 +879,9 @@ export default function Student({
                 waiting = v.type === "open" && lesson.item.status === "pending" && points == null,
                 value = lesson.answers[v.id];
               return (
-                <article className="st-card" key={v.id}>
+                <article className={"st-card answer-card" + (waiting || points == null ? "" : points >= v.maxPoints ? " is-correct" : points <= 0 ? " is-wrong" : " is-partial")} key={v.id}>
                   <div className="st-split">
-                    <span className="st-fine">{translate("ui.questionLabel")}{" "}{i + 1}</span>
+                    <span className="st-fine">{translate("ui.questionLabel")}{" "}{i + 1}{" "}{!waiting && <Verdict points={points} max={v.maxPoints} />}</span>
                     <b className="st-status">
                       {waiting
                         ? translate("ui.awaiting.reviewLabelLabelLabelLabel")
