@@ -4,7 +4,7 @@ export async function profileDispatch(req:Request,parts:string[],user:Row):Promi
  if(parts[0] !== 'profile') return;
  const method=req.method;
  if(method==='GET'){
-  const preferences=one('SELECT language,theme,time_zone AS timeZone FROM profile_preferences WHERE role=? AND user=?',user.role,user.id)||{language:'ru',theme:'system',timeZone:'Asia/Qyzylorda'};
+  const preferences=one('SELECT language,theme,time_zone AS timeZone FROM profile_preferences WHERE role=? AND user=?',user.role,user.id)||{language:'ru',theme:'light',timeZone:'Asia/Qyzylorda'};
   const groups=user.role==='teacher'?all('SELECT DISTINCT g.id,g.name FROM groups g LEFT JOIN subject_teachers s ON s.grp=g.id WHERE g.teacher=? OR s.teacher=?',user.id,user.id):all('SELECT g.id,g.name FROM groups g JOIN students s ON s.grp=g.id WHERE s.id=?',user.id);
   return Response.json({...user,...preferences,groups},{headers:{'Cache-Control':'no-store'}});
  }

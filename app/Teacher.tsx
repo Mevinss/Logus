@@ -9,6 +9,44 @@ import GroupView, { CopyLink, WorkView } from "./TeacherGroup";
 import { AnyRow, Empty, Icon, Overlay, api, initials } from "./teacher-ui";
 import "./teacher.css";
 
+function DeskArt() {
+  return (
+    <div className="t-desk" aria-hidden="true">
+      <div className="t-gridpaper" />
+      <div className="t-sheet shadow" />
+      <div className="t-sheet main">
+        <div className="t-sheet-top" />
+        <div className="t-diagram">
+          <i />
+          <b />
+          <em />
+        </div>
+        <div className="t-sheet-lines" />
+      </div>
+      <div className="t-pencil" />
+    </div>
+  );
+}
+// Counts up to the value once it appears; shows the final value at once for reduced motion.
+function CountUp({ value }: { value: number }) {
+  const [shown, setShown] = useState(value);
+  useEffect(() => {
+    if (!value || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setShown(value);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / 700);
+      setShown(Math.round(value * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <>{shown}</>;
+}
 function countWord(n: number, forms: string[]) {
   const a = Math.abs(n) % 100,
     b = a % 10;
@@ -229,12 +267,12 @@ export default function Teacher({
                       [pending.length, translate("ui.awaiting.review")],
                     ].map(([n, s]) => (
                       <div key={String(s)}>
-                        <strong>{n}</strong>
+                        <strong><CountUp value={Number(n)} /></strong>
                         <span>{s}</span>
                       </div>
                     ))}
                   </div>
-
+                  <DeskArt />
                 </section>
                 <div className="t-dash-grid">
                   <section className="t-panel">
