@@ -214,3 +214,21 @@ html,body{background:var(--canvas)}
 @keyframes spin-in{from{transform:rotate(-120deg);opacity:0}to{transform:none;opacity:1}}
 
 @media(max-width:760px){:root .entry-print{padding-top:24px}:root .atlas{margin-top:-2%}}
+/* Answer-distribution charts on the analytics tab */
+:root .chart-card{display:grid;gap:10px}:root .chart-card>.t-linebtn{border-top:0;border-bottom:1px solid var(--border);padding-top:0;padding-bottom:12px}
+:root .chart{margin:0;display:grid;gap:10px}
+:root .chart figcaption{font-size:.85rem;color:var(--muted)}
+:root .chart-empty{color:var(--muted);margin:0}
+:root .chart-bars{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+:root .chart-bars li{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,2fr) auto;align-items:center;gap:12px;border-radius:8px;padding:2px 4px}
+:root .chart-bars li:hover{background:var(--subtle)}
+:root .chart-label{overflow-wrap:anywhere;font-size:.92rem}
+:root .chart-track{height:14px;background:color-mix(in srgb,var(--border) 55%,transparent);border-radius:4px;overflow:hidden}
+:root .chart-fill{display:block;height:100%;background:color-mix(in srgb,var(--muted) 55%,var(--surface));border-radius:0 4px 4px 0;transform-origin:left;animation:chart-grow .7s var(--ease) both}
+:root .chart-bars li.is-correct .chart-fill,:root .chart-bars.is-solid .chart-fill{background:var(--accent)}
+:root .chart-bars li.is-correct .chart-label{font-weight:600}
+:root .chart-value{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+:root .chart-value small{font-weight:400;color:var(--muted)}
+@keyframes chart-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media (prefers-reduced-motion:reduce){:root .chart-fill{animation:none}}
+@media (max-width:560px){:root .chart-bars li{grid-template-columns:1fr auto;row-gap:4px}:root .chart-track{grid-column:1/-1;grid-row:2}}
