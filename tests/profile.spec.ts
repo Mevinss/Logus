@@ -12,9 +12,9 @@ test('profile persists language/theme/name, validates password and revokes other
   expect((await other.request.get(fixture.url+'/api/me')).status()).toBe(401);
   expect((await first.request.get(fixture.url+'/api/profile')).ok()).toBeTruthy();
   const page=await first.newPage();await page.goto(fixture.url);
-  await expect(page.getByRole('button',{name:'Profile & preferences',exact:true})).toBeVisible();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');await expect(page.locator('html')).toHaveAttribute('lang','en');
+  await expect(page.getByRole('button',{name:'Profile menu',exact:true})).toBeVisible();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');await expect(page.locator('html')).toHaveAttribute('lang','en');
   await page.getByRole('button',{name:'Classes',exact:true}).click();await expect(page.getByRole('heading',{name:'Classes',exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Profile & preferences',exact:true}).click();await expect(page.getByText('Available classes: Profile class',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Profile menu',exact:true}).click();await page.getByRole('button',{name:'Profile & preferences',exact:true}).click();await expect(page.getByText('Available classes: Profile class',{exact:true})).toBeVisible();
   await page.getByLabel('Interface language',{exact:true}).selectOption('kk');await expect(page.getByRole('heading',{name:'Сыныптар',exact:true})).toBeVisible();await page.getByRole('button',{name:'Баптауларды сақтау'}).click();await expect(page.getByText('Баптаулар сақталды',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Жабу',exact:true}).click();await page.getByRole('button',{name:/Profile class.*Сыныпты ашу/}).click();await page.getByRole('button',{name:'Талдау',exact:true}).click();await expect(page.getByRole('heading',{name:'Сынып талдауы',exact:true})).toBeVisible();
   await fixture.restart();await page.reload();await expect(page.locator('html')).toHaveAttribute('lang','kk');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');

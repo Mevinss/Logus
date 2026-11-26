@@ -493,10 +493,32 @@ async function dispatch(req: Request, parts: string[]) {
       "SELECT a.student AS id,s.name,a.status,a.answers,a.points,o.run IS NOT NULL AS opened,v.run IS NOT NULL AS entered FROM assignments a JOIN students s ON s.id=a.student LEFT JOIN opened_lessons o ON o.run=a.run AND o.student=a.student LEFT JOIN cabinet_visits v ON v.run=a.run AND v.student=a.student WHERE a.run=? ORDER BY s.name,s.id",
       k,
     );
+    const maxPoints = lesson.questions.reduce((a, q) => a + (q.maxPoints || 0), 0);
     return {
       questions: lesson.questions.filter((q) => q.type === "open"),
+      totalQuestions: lesson.questions.length,
+      maxPoints,
       students: rows.map((row) => ({
         ...row,
+        answered: (() => {
+          try {
+            return Object.values(JSON.parse(row.answers || "{}")).filter(
+              (v) => v !== null && v !== undefined && String(v).trim() !== "",
+            ).length;
+          } catch {
+            return 0;
+          }
+        })(),
+        score: (() => {
+          try {
+            return Object.values(JSON.parse(row.points || "{}")).reduce(
+              (a: number, v) => a + (Number(v) || 0),
+              0,
+            );
+          } catch {
+            return 0;
+          }
+        })(),
         answers:
           row.status === "pending" || row.status === "graded"
             ? JSON.parse(row.answers)

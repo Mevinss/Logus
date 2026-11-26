@@ -61,9 +61,11 @@ function countWord(n: number, forms: string[]) {
 export default function Teacher({
   name,
   onLogout,
+  onProfile,
 }: {
   name: string;
   onLogout: () => void;
+  onProfile?: () => void;
 }) {
   const {locale,timeZone,t}=useI18n();
   const [data, setData] = useState<AnyRow | null>(null),
@@ -194,6 +196,10 @@ export default function Teacher({
             </button>
             {menu && (
               <div className="t-dropdown">
+                {onProfile && (
+                  <button onClick={() => { setMenuOpen(false); onProfile(); }}>
+                    <Icon n="user" />{t("profile.title")}</button>
+                )}
                 <button onClick={onLogout}>
                   <Icon n="logout" />{translate("ui.sign.out")}</button>
               </div>
@@ -482,12 +488,24 @@ export default function Teacher({
                           .includes(query.toLocaleLowerCase()),
                       )
                       .map((l) => (
-                        <article className="t-lesson" key={l.id}>
+                        (() => {
+                        const given = runs.filter((r) => r.lessonId === l.id && r.kind !== "warmup");
+                        const classes = [...new Map(given.map((r) => [r.groupId, r.groupName])).entries()];
+                        const openEditor = () => {
+                          setEditor(l);
+                          window.scrollTo(0, 0);
+                        };
+                        return (
+                        <article className="t-lesson is-clickable" key={l.id}>
                           <span className="t-cover">
                             <Icon n="book" size={25} />
                           </span>
-                          <div>
-                            <h3>{l.title}</h3>
+                          <div className="t-lesson-body">
+                            <h3>
+                              <button className="t-lesson-open" onClick={openEditor}>
+                                {l.title}
+                              </button>
+                            </h3>
                             <small className="t-muted">
                               {l.questions.length}{" "}
                               {countWord(l.questions.length, [
@@ -497,26 +515,35 @@ export default function Teacher({
                               ])}{" "}{translate("ui.updated")}{" "}{" "}
                               {formatDate(l.updatedAt)}
                             </small>
+                            <div className="t-lesson-tags">
+                              {given.length ? (
+                                <span className="lesson-tag is-issued">✓ {t("lessons.issued")}</span>
+                              ) : (
+                                <span className="lesson-tag is-draft">{t("lessons.draft")}</span>
+                              )}
+                              {classes.map(([id, name]) => (
+                                <span className="lesson-tag is-group" key={id}>
+                                  <Icon n="group" size={13} />{name}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                           <div className="t-actions t-end">
-                            <button
-                              className="t-btn sm"
-                              onClick={() => {
-                                setEditor(l);
-                                window.scrollTo(0, 0);
-                              }}
-                            >
+                            <button className="t-btn sm" onClick={openEditor}>
                               <Icon n="pen" size={15} />{translate("ui.edit")}</button>
                             <button
-                              className="t-textbtn"
+                              className="t-btn sm"
                               onClick={() => {
                                 setRepeat(l);
                                 setGroupId(groups[0]?.id || "");
                                 setError("");
                               }}
-                            >{translate("ui.assign.to.another.class")}</button>
+                            >
+                              <Icon n="group" size={15} />{given.length ? translate("ui.assign.to.another.class") : t("lessons.assign")}</button>
                           </div>
                         </article>
+                        );
+                        })()
                       ))}
                     {!lessons.length && (
                       <Empty title={translate("ui.create.your.first.lesson")} icon="book">{translate("ui.upload.a.pdf.or.paste.text.to.prepare.questions")}</Empty>

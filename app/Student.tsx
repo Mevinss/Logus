@@ -141,10 +141,12 @@ export default function Student({
   initialRun,
   practiceMode = false,
   onSessionExpired,
+  onProfile,
 }: {
   name: string;
   studentId: string;
   onLogout: () => void;
+  onProfile?: () => void;
   initialRun?: string | null;
   practiceMode?: boolean;
   onSessionExpired?: () => void;
@@ -520,6 +522,7 @@ export default function Student({
             <Brand />
           </button>
           <span className="st-role">{translate("ui.student.workspace")}</span>
+          {onProfile && <button className="st-ghost st-profile" onClick={onProfile} aria-label={t("profile.title")} title={t("profile.title")}>{t("profile.short")}</button>}
           <button className="st-ghost st-logout" onClick={onLogout}>{translate("ui.sign.out")}</button>
         </div>
       </header>
@@ -774,7 +777,7 @@ export default function Student({
               {lesson.questions.map((v, i) => (
                 <button
                   key={v.id}
-                  aria-label={translate("Вопрос") + " " + (i + 1)}
+                  aria-label={translate("Вопрос") + " " + (i + 1) + ", " + t(answered(answers[v.id]) ? "student.answered" : "student.unanswered")}
                   aria-current={position === i ? "step" : undefined}
                   className={
                     (position === i ? "current " : "") +
@@ -783,7 +786,7 @@ export default function Student({
                   onClick={() => at(i)}
                   disabled={busy}
                 >
-                  {i + 1}
+                  {answered(answers[v.id]) && position !== i ? <span aria-hidden="true">✓</span> : i + 1}
                 </button>
               ))}
             </nav>
