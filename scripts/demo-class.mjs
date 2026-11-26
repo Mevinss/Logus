@@ -47,7 +47,7 @@ export function seedDemo(db,access){
     if(!existing){const salt=randomBytes(24).toString('hex');db.prepare('INSERT INTO teachers VALUES(?,?,?,?,?)').run(teacherId,'Демо · Учитель',access.email,scryptSync(access.password,salt,64).toString('hex'),salt);}
     db.prepare('INSERT OR IGNORE INTO groups VALUES(?,?,?)').run(groupId,teacherId,'7А · Демо-класс');
     for(const s of access.students)db.prepare('INSERT OR IGNORE INTO students VALUES(?,?,?,?)').run(s.id,groupId,s.name,s.token);
-    db.prepare('INSERT OR IGNORE INTO profile_preferences VALUES(?,?,?,?,?)').run('teacher',teacherId,'ru','system','Asia/Qyzylorda');
+    db.prepare('INSERT OR IGNORE INTO profile_preferences VALUES(?,?,?,?,?)').run('teacher',teacherId,'ru','light','Asia/Qyzylorda');
     for(const [index,subject] of subjects.entries()){
       const lessonId=`logus-demo-${subject.slug}-v1`,runId=lessonId+'-run';
       const questionBase={skill:subject.subject,sourceId:1,maxPoints:1};

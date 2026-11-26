@@ -359,9 +359,9 @@ export function teacherHome(teacher: string, base: string) {
     teacher,
   ).map((g) => groupReport(g, base, teacher));
   const lessons = all(
-    "SELECT body FROM lessons WHERE teacher=? ORDER BY rowid DESC",
+    "SELECT body,EXISTS(SELECT 1 FROM runs r WHERE r.lesson=lessons.id) AS issued FROM lessons WHERE teacher=? ORDER BY rowid DESC",
     teacher,
-  ).map(read);
+  ).map((r) => ({ ...read(r), issued: Boolean(r.issued) }));
   const repeat =
     gs
       .flatMap((g) => g.metrics)
