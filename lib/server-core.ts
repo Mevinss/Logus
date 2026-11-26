@@ -196,11 +196,16 @@ export function ownedGroup(teacher: string, group: string) {
 }
 export function groupDto(group: Row, base: string) {
   const students = all(
-    "SELECT id,name,invite FROM students WHERE grp=? ORDER BY rowid",
+    `SELECT s.id,s.name,s.invite,(
+       EXISTS(SELECT 1 FROM sessions x WHERE x.role='student' AND x.user=s.id)
+       OR EXISTS(SELECT 1 FROM cabinet_visits v WHERE v.student=s.id)
+       OR EXISTS(SELECT 1 FROM assignments a WHERE a.student=s.id AND a.status<>'not_started')
+     ) AS joined FROM students s WHERE s.grp=? ORDER BY s.rowid`,
     group.id,
   ).map((s) => ({
     id: s.id,
     name: s.name,
+    joined: Boolean(s.joined),
     inviteUrl: group.subject ? undefined : base + "/invite/" + s.invite,
   }));
   return {

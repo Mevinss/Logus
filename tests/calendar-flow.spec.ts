@@ -10,7 +10,7 @@ test('calendar teacher creation reaches student, exports copies, survives restar
   const lesson=await post('lessons',{title:'Calendar lesson',text:quote});
   const patch=await teacher.request.patch(fixture.url+'/api/lessons/'+lesson.id,{data:{questions:[{...choice,id:'calendar-q1',sourceId:1}],settings:{durationMinutes:null,opensAt:null,dueAt:null,resultMode:'immediate'}}});expect(patch.ok()).toBeTruthy();
   const run=await post('lessons/'+lesson.id+'/publish',{groupId:group.id});
-  const page=await teacher.newPage();await page.goto(fixture.url);await page.getByRole('button',{name:'Расписание класса',exact:true}).first().click();
+  const page=await teacher.newPage();await page.goto(fixture.url);await page.getByRole('button',{name:'Расписание',exact:true}).first().click();
   await page.getByRole('button',{name:'Назначить занятие',exact:true}).click();
   await page.getByLabel('Класс',{exact:true}).last().selectOption(group.id);
   await page.getByLabel('Название занятия').fill('Scheduled science');await page.getByLabel('Предмет',{exact:true}).fill('Science');

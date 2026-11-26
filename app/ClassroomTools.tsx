@@ -125,11 +125,20 @@ export function RosterTools({
               disabled={busy || !group.students.length}
               onClick={() => perform(() => printCards(group))}
             >{translate("ui.print.qr.cards")}</button>
-            <button className="t-btn" onClick={() => open("staff")}>{translate("ui.class.teachers")}</button>
           </>
         )}
-        {!!lessons.length && (
-          <button className="t-btn" onClick={() => open("share")}>{translate("ui.share.lesson.copy")}</button>
+        {(group.managesRoster || !!lessons.length) && (
+          <details className="t-more">
+            <summary className="t-btn">{translate("roster.more")} <span aria-hidden="true">⋯</span></summary>
+            <div className="t-more-menu">
+              {group.managesRoster && (
+                <button onClick={(e) => { (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; open("staff"); }}>{translate("ui.class.teachers")}</button>
+              )}
+              {!!lessons.length && (
+                <button onClick={(e) => { (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; open("share"); }}>{translate("ui.share.lesson.copy")}</button>
+              )}
+            </div>
+          </details>
         )}
       </div>
       {!mode && message && <p role="status">{translate(message)}</p>}
@@ -429,6 +438,34 @@ export function LiveClassroom({
     </section>
   );
 }
+function LiveChip({ s, total, max }: { s: AnyRow; total: number; max: number }) {
+  if (s.status === "not_started") {
+    const label = s.opened
+      ? translate("ui.opened.material")
+      : s.entered
+        ? translate("ui.signed.inLabel")
+        : translate("ui.not.opened.yet");
+    return <span className={"live-chip " + (s.opened || s.entered ? "is-seen" : "is-idle")}>{label}</span>;
+  }
+  if (s.status === "in_progress")
+    return (
+      <span className="live-chip is-working">
+        {translate("live.answering", undefined, { done: s.answered || 0, total })}
+        <i className="live-mini" aria-hidden="true">
+          <b style={{ width: (total ? ((s.answered || 0) / total) * 100 : 0) + "%" }} />
+        </i>
+      </span>
+    );
+  if (s.status === "graded" && max) {
+    const ratio = (s.score || 0) / max;
+    return (
+      <span className={"live-chip is-graded " + (ratio >= 0.75 ? "is-high" : ratio >= 0.5 ? "is-mid" : "is-low")}>
+        ✓ {statusName(s.status)} · {s.score} / {max}
+      </span>
+    );
+  }
+  return <span className="live-chip is-pending">✓ {translate("live.submitted")} · {statusName(s.status)}</span>;
+}
 function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
   useI18n();
   const [data, setData] = useState<AnyRow | null>(null),
@@ -514,7 +551,24 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
         <p>{translate("ui.loading.list")}</p>
       ) : (
         <>
-          <p>{translate("test.liveCounts",undefined,{
+          {(() => {
+            const total = students.length,
+              done = students.filter((s) => ["pending", "graded"].includes(s.status)).length,
+              working = students.filter((s) => s.status === "in_progress").length;
+            return (
+              <div className="live-progress" aria-label={translate("live.progress", undefined, { done, total })}>
+                <div className="live-progress-head">
+                  <strong>{translate("live.progress", undefined, { done, total })}</strong>
+                  <span>{total ? Math.round((done / total) * 100) : 0} %</span>
+                </div>
+                <div className="live-bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
+                  <span className="is-done" style={{ width: (total ? (done / total) * 100 : 0) + "%" }} />
+                  <span className="is-working" style={{ width: (total ? (working / total) * 100 : 0) + "%" }} />
+                </div>
+              </div>
+            );
+          })()}
+          <p className="live-funnel">{translate("test.liveCounts",undefined,{
             assigned:students.length,
             entered:students.filter(s=>s.entered||s.opened||s.status!=="not_started").length,
             opened:students.filter(s=>s.opened||s.status!=="not_started").length,
@@ -534,13 +588,7 @@ function RunMonitor({ run, reload }: { run: string; reload: () => void }) {
                   <tr key={s.id}>
                     <td>{s.name}</td>
                     <td>
-                      {s.status === "not_started"
-                        ? s.opened
-                          ? translate("ui.opened.material")
-                          : s.entered
-                            ? translate("ui.signed.inLabel")
-                            : translate("ui.not.opened.yet")
-                        : statusName(s.status)}
+                      <LiveChip s={s} total={data.totalQuestions || 0} max={data.maxPoints || 0} />
                     </td>
                   </tr>
                 ))}

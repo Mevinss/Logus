@@ -66,7 +66,18 @@ export function CopyLink({
 export function Score({ w }: { w: AnyRow }) {
   useI18n();
   return (
-    <span className={"t-status " + w.status}>
+    <span
+      className={
+        "t-status " + w.status +
+        (w.status === "graded" && w.maxPoints
+          ? w.score / w.maxPoints >= 0.75
+            ? " is-high"
+            : w.score / w.maxPoints >= 0.5
+              ? " is-mid"
+              : " is-low"
+          : "")
+      }
+    >
       {w.status === "graded"
         ? w.score + " / " + w.maxPoints
         : statusName(w.status)}
@@ -585,6 +596,9 @@ export default function GroupView({
               >
                 {s.name}
               </button>
+              <span className={"roster-state " + (s.joined ? "is-joined" : "is-waiting")}>
+                {s.joined ? "✓ " + translate("roster.joined") : translate("roster.waiting")}
+              </span>
               {g.managesRoster && (
                 <button className="t-btn sm t-end" onClick={() => setInvite(s)}>
                   <Icon n="link" size={15} />{translate("ui.invitation")}</button>
@@ -616,6 +630,13 @@ export default function GroupView({
         <section className="t-card">
           <h2>{translate("ui.class.gradebook")}</h2>
           <ExportJournal group={g} runs={runs} works={works} />
+          {!!runs.length && (
+            <p className="journal-legend">
+              <span><i style={{ background: "var(--good)" }} />{translate("journal.high")}</span>
+              <span><i style={{ background: "var(--mid)" }} />{translate("journal.mid")}</span>
+              <span><i style={{ background: "var(--bad)" }} />{translate("journal.low")}</span>
+            </p>
+          )}
           {runs.length ? (
             <div className="t-table-scroll">
               <table>

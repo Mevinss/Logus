@@ -17,6 +17,7 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
     invite || initialRun || studentEntry ? "student" : "teacher",
   );
   const [user, setUser] = useState<Actor | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false);
   const [error, setError] = useState(""),
@@ -146,14 +147,15 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
         <Brand />{translate("ui.opening.workspace")}</div>
     );
   if (user?.role === "teacher")
-    return <><Profile user={user} onUpdate={name=>setUser({...user,name})} onLogout={logout}/><Teacher name={user.name} onLogout={logout} /></>;
+    return <><Profile user={user} open={profileOpen} onClose={()=>setProfileOpen(false)} onUpdate={name=>setUser({...user,name})} onLogout={logout}/><Teacher name={user.name} onLogout={logout} onProfile={()=>setProfileOpen(true)} /></>;
   if (user?.role === "student")
     return (
-      <><Profile user={user} onUpdate={name=>setUser({...user,name})} onLogout={logout}/><Student
+      <><Profile user={user} open={profileOpen} onClose={()=>setProfileOpen(false)} onUpdate={name=>setUser({...user,name})} onLogout={logout}/><Student
         name={user.name}
         studentId={user.id}
         initialRun={joinedRun}
         onLogout={logout}
+        onProfile={()=>setProfileOpen(true)}
       /></>
     );
   const pupil = role === "student";

@@ -28,6 +28,12 @@ const paths: Record<string, React.ReactNode> = {
       <path d="M9 4H4v16h5m0-8h12m-5-5 5 5-5 5" />
     </>
   ),
+  user: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
+    </>
+  ),
   check: <path d="m5 12 4 4L20 5" />,
   chev: <path d="m9 5 7 7-7 7" />,
   file: (

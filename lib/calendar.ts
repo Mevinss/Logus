@@ -70,7 +70,9 @@ export async function calendarDispatch(req:Request,parts:string[],user:User,base
   const from=url.searchParams.get('from')||new Date(Date.now()-31*86400000).toISOString(),to=url.searchParams.get('to')||new Date(Date.now()+90*86400000).toISOString();
   if(!Number.isFinite(Date.parse(from))||!Number.isFinite(Date.parse(to))||Date.parse(to)-Date.parse(from)>370*86400000||Date.parse(to)<=Date.parse(from))fail(400,'calendar.invalid');
   const events=user.role==='teacher'?all('SELECT e.*,g.name AS groupName FROM calendar_events e JOIN groups g ON g.id=e.grp WHERE e.teacher=? AND e.ends>? AND e.starts<? ORDER BY e.starts',user.id,new Date(from).toISOString(),new Date(to).toISOString()):all('SELECT e.*,g.name AS groupName FROM calendar_events e JOIN groups g ON g.id=e.grp JOIN students s ON s.grp=e.grp WHERE s.id=? AND e.ends>? AND e.starts<? ORDER BY e.starts',user.id,new Date(from).toISOString(),new Date(to).toISOString());
-  return Response.json({events:events.map(e=>dto(e,user,base))});
+  const f=new Date(from).toISOString(),t=new Date(to).toISOString();
+  const issued=(user.role==='teacher'?all("SELECT r.id,r.grp,r.created,r.body,g.name AS groupName FROM runs r JOIN lessons l ON l.id=r.lesson JOIN groups g ON g.id=r.grp WHERE l.teacher=? AND r.kind='lesson' AND r.parent IS NULL AND r.created>=? AND r.created<? ORDER BY r.created",user.id,f,t):all("SELECT r.id,r.grp,r.created,r.body,g.name AS groupName FROM runs r JOIN assignments a ON a.run=r.id JOIN groups g ON g.id=r.grp WHERE a.student=? AND r.kind='lesson' AND r.parent IS NULL AND r.created>=? AND r.created<? ORDER BY r.created",user.id,f,t)).map(r=>{let title='';try{title=JSON.parse(r.body as string).title||''}catch{}return {id:r.id,grp:r.grp,created:r.created,groupName:r.groupName,title};});
+  return Response.json({events:events.map(e=>dto(e,user,base)),issued});
  }
  if(req.method==='GET'&&eventId) {
   const event=visible(user,eventId);
