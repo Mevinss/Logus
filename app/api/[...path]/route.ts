@@ -54,6 +54,7 @@ import {
   teacherDetails,
   grade,
   issueRun,
+  joinClassRuns,
 } from "../../../lib/server-report";
 
 export const runtime = "nodejs";
@@ -293,7 +294,9 @@ async function dispatch(req: Request, parts: string[]) {
         let added = 0;
         for (const name of cleaned) {
           if (existing.has(key(name))) continue;
-          run("INSERT INTO students VALUES(?,?,?,?)", id(), k, name, secret());
+          const sid = id();
+          run("INSERT INTO students VALUES(?,?,?,?)", sid, k, name, secret());
+          joinClassRuns(sid);
           existing.add(key(name));
           added++;
         }
@@ -314,13 +317,17 @@ async function dispatch(req: Request, parts: string[]) {
     if (action === "students") {
       if (is("POST", 3)) {
         const data = await input(req);
-        run(
-          "INSERT INTO students VALUES(?,?,?,?)",
-          id(),
-          k,
-          required(data.name, 120),
-          secret(),
-        );
+        const sid = id();
+        transaction(() => {
+          run(
+            "INSERT INTO students VALUES(?,?,?,?)",
+            sid,
+            k,
+            required(data.name, 120),
+            secret(),
+          );
+          joinClassRuns(sid);
+        });
         return groupDto(group, base);
       }
       if (is("GET", 4)) {
