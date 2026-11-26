@@ -92,6 +92,13 @@ test("Ручной урок, PDF, журнал, выборочная разми�
       url + "/api/lessons/" + quick.id + "/publish",
       { groupId: one.id },
     );
+    // A student added after the lesson was issued still gets the class lesson.
+    const lateAdd = await write(tr, url + "/api/groups/" + one.id + "/students", {
+      name: "Ярослав",
+    });
+    const newcomer = lateAdd.students.find((s: { name: string }) => s.name === "Ярослав");
+    const newcomerHome = await read(tr, url + "/api/groups/" + one.id + "/students/" + newcomer.id);
+    expect(JSON.stringify(newcomerHome.works)).toContain(issued.id);
     await o.goto(url);
     await button(o, "Я ученик").click();
     await o.getByLabel("Ссылка-приглашение").fill(issued.url);

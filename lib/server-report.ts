@@ -265,7 +265,28 @@ function skills(rows: Row[]) {
   }
   return [...totals.values()].map(s => ({...s, percent: percentage(s.earned, s.maxPoints)}));
 }
+
+// Runs are snapshotted at issue time, so a student added later would miss the
+// lessons the whole class already has. Give them every class-wide lesson that
+// is still active: a top-level lesson, not archived, that every other member
+// of the group already has (a run sent to a chosen few stays as it was).
+export function joinClassRuns(student: string) {
+  const grp = one("SELECT grp FROM students WHERE id=?", student)?.grp;
+  if (!grp) return;
+  run(
+    `INSERT OR IGNORE INTO assignments(run,student)
+     SELECT r.id,? FROM runs r
+     WHERE r.grp=? AND r.kind='lesson' AND r.parent IS NULL
+       AND NOT EXISTS (SELECT 1 FROM run_archive x WHERE x.run=r.id)
+       AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.run=r.id AND a.student=?)
+       AND EXISTS (SELECT 1 FROM students o WHERE o.grp=r.grp AND o.id<>?)
+       AND NOT EXISTS (SELECT 1 FROM students o WHERE o.grp=r.grp AND o.id<>?
+         AND NOT EXISTS (SELECT 1 FROM assignments a WHERE a.run=r.id AND a.student=o.id))`,
+    student, grp, student, student, student,
+  );
+}
 export function studentHome(student: string, name: string, teacher?: string) {
+  joinClassRuns(student);
   settleExpired(student);
   const rows = all(
     workQuery +
