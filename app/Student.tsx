@@ -598,7 +598,7 @@ export default function Student({
         {lesson && view === "lesson" && (
           <>
             <div className="st-heading">
-              <span className="st-sub">{kind(lesson.item)}{translate("ui.material")}</span>
+              <span className="st-sub">{kind(lesson.item)} {translate("ui.material")}</span>
               <h1>{lesson.item.title}</h1>
               {lesson.item.instruction && (
                 <p className="st-text">{lesson.item.instruction}</p>

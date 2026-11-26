@@ -61,6 +61,16 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 const pdfLimitMiB = () => process.env.VERCEL === "1" ? 4 : 20;
 type Context = { params: Promise<{ path: string[] }> };
+// Public practicum creates one participant per browser token; cap new participants per client address.
+const practiceSignups = new Map<string, number[]>();
+function limitPracticeSignups(req: Request) {
+  const address = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "local").split(",")[0].trim();
+  const now = Date.now(), windowMs = 10 * 60000;
+  const recent = (practiceSignups.get(address) || []).filter((t) => t > now - windowMs);
+  if (recent.length >= 30) fail(429, "Слишком много новых попыток. Повторите через несколько минут.");
+  if (practiceSignups.size > 5000) practiceSignups.clear();
+  practiceSignups.set(address, [...recent, now]);
+}
 async function input(req: Request): Promise<Row> {
   const raw = await req.text();
   if (raw.length > 5000000) fail(413, "Слишком большой запрос.");
@@ -143,6 +153,7 @@ async function dispatch(req: Request, parts: string[]) {
     if(!one("SELECT id FROM runs WHERE id=?", "public-map-v1")) fail(404,"Практикум не опубликован.");
     const studentId = createHash("sha256").update("public-map-v1:"+token).digest("hex");
     const name = "Участник "+studentId.slice(0,6);
+    if(!one("SELECT 1 FROM students WHERE id=?",studentId)) limitPracticeSignups(req);
     run("INSERT OR IGNORE INTO students VALUES(?,?,?,?)",studentId,"public-map-group",name,secret());
     run("INSERT OR IGNORE INTO assignments(run,student) VALUES(?,?)","public-map-v1",studentId);
     const fresh = one("SELECT status FROM assignments WHERE run=? AND student=?","public-map-v1",studentId)?.status === "not_started";

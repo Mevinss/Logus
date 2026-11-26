@@ -939,8 +939,8 @@ export default function Editor({
           <button className="t-btn" onClick={() => setPreview(true)}>
             {a.preview}
           </button>
-          <button
-            className="t-textbtn"
+          {!initial.issued && <button
+            className="t-textbtn t-danger-text"
             onClick={() => {
               if (window.confirm(a.deleteConfirm))
                 void run(a.delete, async () => {
@@ -951,7 +951,7 @@ export default function Editor({
             }}
           >
             {a.delete}
-          </button>
+          </button>}
           <button
             className="t-btn"
             onClick={() =>
