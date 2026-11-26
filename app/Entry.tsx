@@ -3,6 +3,7 @@ import { translate } from "./I18n";
 import { FormEvent, useEffect, useState } from "react";
 import Brand from "./Brand";
 import Atlas from "./Atlas";
+import { Spotlight } from "./Motion";
 import Profile,{PreferencesFields} from "./Profile";
 import {useI18n} from "./I18n";
 import Teacher from "./Teacher";
@@ -147,10 +148,10 @@ export default function Entry({ invite, initialRun, studentEntry }: Props) {
         <Brand />{translate("ui.opening.workspace")}</div>
     );
   if (user?.role === "teacher")
-    return <><Profile user={user} open={profileOpen} onClose={()=>setProfileOpen(false)} onUpdate={name=>setUser({...user,name})} onLogout={logout}/><Teacher name={user.name} onLogout={logout} onProfile={()=>setProfileOpen(true)} /></>;
+    return <><Spotlight/><Profile user={user} open={profileOpen} onClose={()=>setProfileOpen(false)} onUpdate={name=>setUser({...user,name})} onLogout={logout}/><Teacher name={user.name} onLogout={logout} onProfile={()=>setProfileOpen(true)} /></>;
   if (user?.role === "student")
     return (
-      <><Profile user={user} open={profileOpen} onClose={()=>setProfileOpen(false)} onUpdate={name=>setUser({...user,name})} onLogout={logout}/><Student
+      <><Spotlight/><Profile user={user} open={profileOpen} onClose={()=>setProfileOpen(false)} onUpdate={name=>setUser({...user,name})} onLogout={logout}/><Student
         name={user.name}
         studentId={user.id}
         initialRun={joinedRun}

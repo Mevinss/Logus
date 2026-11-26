@@ -4,6 +4,7 @@ import { translate } from "./I18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Brand from "./Brand";
 import Calendar from "./Calendar";
+import { Celebrate, ScoreRing, SlideInk, Skeleton } from "./Motion";
 import { Verdict } from "./Charts";
 import { useI18n } from "./I18n";
 import ScaleLab from "./ScaleLab";
@@ -423,6 +424,7 @@ export default function Student({
     debounce.current = setTimeout(() => void sync(), 350);
   }
   const submitLock = useRef(false);
+  const [celebrate, setCelebrate] = useState(false);
   async function submit() {
     if (!run || submitLock.current) return;
     submitLock.current = true;
@@ -442,6 +444,7 @@ export default function Student({
         sessionStorage.removeItem(posKey(run));
       } catch {}
       setConfirm(false);
+      setCelebrate(true);
       setReload((n) => n + 1);
     } catch (e) {
       setError(message(e));
@@ -555,6 +558,7 @@ export default function Student({
                 aria-selected={tab === "history"}
                 onClick={() => setTab("history")}
               >{translate("ui.results.history")}</button>
+              <SlideInk watch={tab} />
             </div>
             {home ? (
               <>
@@ -594,11 +598,11 @@ export default function Student({
                 )}
               </>
             ) : (
-              !error && <p role="status">{translate("ui.loading.lessons")}</p>
+              !error && <Skeleton label={translate("ui.loading.lessons")} rows={3} />
             )}
           </>
         )}
-        {run && !lesson && !error && <p role="status">{translate("ui.loading.lesson")}</p>}
+        {run && !lesson && !error && <Skeleton label={translate("ui.loading.lesson")} rows={5} />}
         {lesson && view === "lesson" && (
           <>
             <div className="st-heading">
@@ -813,6 +817,11 @@ export default function Student({
                   {translate(statusText[lesson.item.status])}
                 </span>
               </div>
+              {celebrate && <Celebrate />}
+              <div className="st-scoreline">
+              {lesson.item.gradedMaxPoints > 0 && (
+                <ScoreRing score={Number(lesson.item.score ?? lesson.item.earned) || 0} max={lesson.item.gradedMaxPoints} />
+              )}
               <div className="st-result">
                 <strong>{lesson.item.score ?? lesson.item.earned}</strong>
                 <span>{translate("ui.of")}{" "}{lesson.item.gradedMaxPoints}{" "}
@@ -820,6 +829,7 @@ export default function Student({
                     ? translate("ui.for.reviewed.questionsLabel")
                     : translate("ui.for.this.work")}
                 </span>
+              </div>
               </div>
               {lesson.item.status === "pending" && (
                 <p className="st-sub">{translate("ui.maximum.total.score")}{" "}{lesson.item.maxPoints}{" "}{translate("ui.final.score.follows.review.of.the.open.response")}</p>

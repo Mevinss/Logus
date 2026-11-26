@@ -1,4 +1,5 @@
 "use client";
+import { SlideInk, Skeleton } from "./Motion";
 import RunControls from "./RunControls";
 import { QuestionChart, ScoreChart, Verdict } from "./Charts";
 import { translate, formatDate, useI18n } from "./I18n";
@@ -495,7 +496,7 @@ export default function GroupView({
     return (
       <>
         <button className="t-back" onClick={back}>{translate("ui.classesLabelLabelLabelLabel")}</button>
-        <p>{err || translate("ui.loading.class")}</p>
+        {err ? <p>{err}</p> : <Skeleton label={translate("ui.loading.class")} rows={4} />}
       </>
     );
   const g = d.group,
@@ -526,13 +527,14 @@ export default function GroupView({
             {translate(s)}
           </button>
         ))}
+        <SlideInk watch={tab} />
       </div>
       {err && (
         <p className="t-error" role="alert">
           {translate(err)}
         </p>
       )}
-      {success && <p className="t-notice">{success}</p>}
+      {success && <p className="t-notice t-toast" role="status" key={success}>{success}</p>}
       {tab === "Урок идёт" && (
         <LiveClassroom initialRun={liveRun} runs={runs} reload={reload} />
       )}

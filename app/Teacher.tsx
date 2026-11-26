@@ -3,6 +3,7 @@ import { translate, formatDate } from "./I18n";
 import React, { useCallback, useEffect, useState } from "react";
 import Brand from "./Brand";
 import Calendar from "./Calendar";
+import { SlideInk, Skeleton } from "./Motion";
 import {useI18n} from "./I18n";
 import Editor from "./TeacherEditor";
 import GroupView, { CopyLink, WorkView } from "./TeacherGroup";
@@ -182,6 +183,7 @@ export default function Teacher({
                 {s === "calendar" ? t("calendar.title") : translate(s)}
               </button>
             ))}
+            <SlideInk watch={nav} />
           </nav>
           <div className="t-account">
             <button
@@ -210,9 +212,7 @@ export default function Teacher({
       <main className="t-main">
         {!data ? (
           <section className="t-card">
-            <h2>
-              {err ? translate("ui.could.not.load.workspace") : translate("ui.loading.workspace")}
-            </h2>
+            {err ? <h2>{translate("ui.could.not.load.workspace")}</h2> : <Skeleton label={translate("ui.loading.workspace")} rows={4} />}
             {err && (
               <>
                 <p>{translate(err)}</p>
