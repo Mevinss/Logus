@@ -1132,3 +1132,10 @@ th small {
     max-height: 94dvh;
   }
 }
+
+.t-range { display: grid; gap: 8px; margin-top: 8px; }
+.t-range-row, .t-range-chunks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.t-range-row input { flex: 1 1 180px; min-width: 0; }
+.t-range-chunks .t-btn { padding: 4px 10px; font-size: 13px; }
+.t-range-bad { color: var(--danger, #b3261e); }
+.t-pages { max-height: 320px; overflow-y: auto; }

@@ -395,6 +395,101 @@ export function QuestionEdit({
     </article>
   );
 }
+const rangeText = {
+  ru: { label: "Страницы", hint: "например 1-5, 8, 10-20", apply: "Выбрать", all: "Все", none: "Снять все", bad: "Не понял диапазон. Пример: 1-5, 8, 10-20", picked: "Выбрано" },
+  kk: { label: "Беттер", hint: "мысалы 1-5, 8, 10-20", apply: "Таңдау", all: "Барлығы", none: "Барлығын алу", bad: "Ауқым түсініксіз. Мысал: 1-5, 8, 10-20", picked: "Таңдалды" },
+  en: { label: "Pages", hint: "e.g. 1-5, 8, 10-20", apply: "Select", all: "All", none: "Clear", bad: "Could not read the range. Example: 1-5, 8, 10-20", picked: "Selected" },
+};
+// "1-5, 8, 10-20" -> set of page numbers; null when the text is not a valid range list.
+export function parseRange(text: string): Set<number> | null {
+  const out = new Set<number>();
+  const parts = text.replace(/\s*[-–—]\s*/g, "-").split(/[,;\s]+/).filter(Boolean);
+  if (!parts.length) return null;
+  for (const part of parts) {
+    const m = part.match(/^(\d+)(?:[-–—](\d+))?$/);
+    if (!m) return null;
+    let a = Number(m[1]), b = Number(m[2] ?? m[1]);
+    if (a > b) [a, b] = [b, a];
+    if (b - a > 5000) return null;
+    for (let n = a; n <= b; n++) out.add(n);
+  }
+  return out;
+}
+function PageRange({
+  pages,
+  selected,
+  setSelected,
+  language,
+}: {
+  pages: Page[];
+  selected: number[];
+  setSelected: (ids: number[]) => void;
+  language: string;
+}) {
+  const t = rangeText[language as keyof typeof rangeText] || rangeText.ru;
+  const [text, setText] = useState("");
+  const [bad, setBad] = useState(false);
+  const num = (p: Page) => p.sourcePage || p.id;
+  const max = pages.reduce((m, p) => Math.max(m, num(p)), 0);
+  const apply = (value = text) => {
+    const set = parseRange(value);
+    if (!set) return setBad(true);
+    setBad(false);
+    setSelected(pages.filter((p) => set.has(num(p))).map((p) => p.id));
+  };
+  const chunks: [number, number][] = [];
+  if (max > 20) for (let a = 1; a <= max; a += 20) chunks.push([a, Math.min(max, a + 19)]);
+  return (
+    <div className="t-range">
+      <div className="t-range-row">
+        <input
+          aria-label={t.label}
+          placeholder={t.hint}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setBad(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              apply();
+            }
+          }}
+        />
+        <button className="t-btn" disabled={!text.trim()} onClick={() => apply()}>
+          {t.apply}
+        </button>
+        <button className="t-btn" onClick={() => setSelected(pages.filter((p) => p.text.trim()).map((p) => p.id))}>
+          {t.all}
+        </button>
+        <button className="t-btn" onClick={() => setSelected([])}>
+          {t.none}
+        </button>
+        <small className="t-muted">
+          {t.picked}: {selected.length} / {pages.length}
+        </small>
+      </div>
+      {bad && <small className="t-range-bad">{t.bad}</small>}
+      {chunks.length > 0 && (
+        <div className="t-range-chunks">
+          {chunks.map(([a, b]) => (
+            <button
+              key={a}
+              className="t-btn"
+              onClick={() => {
+                setText(a + "-" + b);
+                apply(a + "-" + b);
+              }}
+            >
+              {a}–{b}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 export default function Editor({
   initial,
   pdfLimitMiB,
@@ -714,6 +809,12 @@ export default function Editor({
                   ? tr("authoring.legacy.043")
                   : tr("authoring.legacy.054")}
               </h3>
+              <PageRange
+                pages={pages}
+                selected={selected}
+                setSelected={setSelected}
+                language={language}
+              />
               <div className="t-pages">
                 {pages.map((p) => (
                   <div key={p.id}>
