@@ -515,7 +515,8 @@ async function dispatch(req: Request, parts: string[]) {
         if(staged.length) await import("@vercel/blob").then(store=>store.del(staged)).catch(()=>{});
       }
       l=ownedLesson(u.id,k);
-      const pages=append?[...l.pages]:[];
+      // Text pasted by hand (no documentId) is replaced by an uploaded file, not mixed with its pages.
+      const pages=append?l.pages.filter(p=>p.documentId):[];
       if(pages.reduce((n,p)=>n+p.text.length,0)+processed.reduce((n,f)=>n+f.texts.join("").length,0)>4000000) fail(413,"Разделите материал на несколько уроков.");
       const grants:string[]=[];
       for(const file of processed) {
@@ -533,6 +534,7 @@ async function dispatch(req: Request, parts: string[]) {
         l.pages=pages;l.selectedPages=pages.filter(p=>p.text.trim()).map(p=>p.id);
         l.pdfUrl=pages.find(p=>p.pdfUrl)?.pdfUrl || null;
         if(!append) l.questions=[];
+        else l.questions=l.questions.filter(q=>pages.some(p=>p.id===q.sourceId));
         return {...saveLesson(l,u.id),...(processed.some(f=>!f.texts.some(t=>t.trim()))?{warning:"Текст не извлечён. Для скана требуется OCR. Вставьте текст материала вручную."}:{})};
       });
     }
