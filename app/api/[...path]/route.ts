@@ -61,7 +61,12 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
-const pdfLimitMiB = () => process.env.VERCEL === "1" ? 4 : 20;
+// On Vercel a function request body is capped at 4.5 MB, so files go straight to Blob storage
+// from the browser and the function reads them from there. Without Blob they go in the request body.
+const directUpload = () => Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+const pdfLimitMiB = () => directUpload() ? 50 : process.env.VERCEL === "1" ? 4 : 20;
+const uploadPrefix = (teacher: string) =>
+  "logus/v1/uploads/" + createHash("sha256").update(teacher).digest("hex").slice(0, 24) + "/";
 type Context = { params: Promise<{ path: string[] }> };
 // Public practicum creates one participant per browser token; cap new participants per client address.
 const practiceSignups = new Map<string, number[]>();
@@ -246,7 +251,27 @@ async function dispatch(req: Request, parts: string[]) {
   }
   const u = session(req, "teacher"),
     base = baseUrl(req);
-  if (resource === "teacher" && is("GET", 1)) return { ...teacherHome(u.id, base), pdfLimitMiB: pdfLimitMiB() };
+  if (resource === "teacher" && is("GET", 1)) return { ...teacherHome(u.id, base), pdfLimitMiB: pdfLimitMiB(), directUpload: directUpload() };
+  if (resource === "uploads" && k === "folder" && is("GET", 2)) return { folder: uploadPrefix(u.id) };
+  if (resource === "uploads" && is("POST", 1)) {
+    if (!directUpload()) fail(404, "Маршрут не найден.");
+    const body = await input(req);
+    if (body.type !== "blob.generate-client-token") fail(400, "Неверный запрос загрузки.");
+    const { handleUpload } = await import("@vercel/blob/client");
+    return handleUpload({
+      request: req,
+      body: body as any,
+      onBeforeGenerateToken: async (pathname) => {
+        if (!pathname.startsWith(uploadPrefix(u.id)) || !/^[^/]+\.(pdf|docx|txt)$/i.test(pathname.slice(uploadPrefix(u.id).length)))
+          fail(400, "Поддерживаются PDF, DOCX и TXT.");
+        return {
+          addRandomSuffix: true,
+          maximumSizeInBytes: pdfLimitMiB() * 1024 * 1024,
+          validUntil: Date.now() + 15 * 60000,
+        };
+      },
+    });
+  }
   if (resource === "groups") {
     if (is("POST", 1)) {
       const data = await input(req),
@@ -436,26 +461,60 @@ async function dispatch(req: Request, parts: string[]) {
     }
     if (["pdf","materials"].includes(action) && is("POST",3)) {
       const limit=pdfLimitMiB()*1024*1024;
-      if(Number(req.headers.get("content-length"))>limit+65536) fail(413,"Превышен размер загрузки.");
-      const form=await req.formData();
-      const uploads=[...form.getAll("file"),...form.getAll("files")];
-      if(!uploads.length || uploads.length>10 || uploads.some(f=>typeof f==="string")) fail(400,"Выберите от 1 до 10 файлов.");
-      const files=uploads as File[];
+      let files:{name:string;size:number;bytes:()=>Promise<Buffer>}[];
+      let append=action==="materials";
+      const staged:string[]=[];
+      if((req.headers.get("content-type")||"").includes("application/json")) {
+        // Files the browser already put into Blob storage (see the "uploads" route).
+        const data=await input(req);
+        const list=Array.isArray(data.uploads)?data.uploads:[];
+        if(!directUpload() || !list.length || list.length>10) fail(400,"Выберите от 1 до 10 файлов.");
+        const prefix=uploadPrefix(u.id);
+        const store=await import("@vercel/blob");
+        files=list.map((f:Row)=>{
+          const pathname=required(f.pathname,500), name=required(f.name,300);
+          if(!pathname.startsWith(prefix) || pathname.includes("..")) fail(400,"Файл не найден. Загрузите его ещё раз.");
+          staged.push(pathname);
+          return {name,size:0,bytes:async()=>{
+            const result=await store.get(pathname,{access:"private",useCache:false});
+            if(!result || result.statusCode!==200) fail(400,"Файл не найден. Загрузите его ещё раз.");
+            const bytes=Buffer.from(await new Response(result.stream).arrayBuffer());
+            if(bytes.length>limit) fail(413,"Превышен размер загрузки.");
+            return bytes;
+          }};
+        });
+        append=append || data.append===true;
+      } else {
+        if(Number(req.headers.get("content-length"))>limit+65536) fail(413,"Превышен размер загрузки.");
+        const form=await req.formData();
+        const uploads=[...form.getAll("file"),...form.getAll("files")];
+        if(!uploads.length || uploads.length>10 || uploads.some(f=>typeof f==="string")) fail(400,"Выберите от 1 до 10 файлов.");
+        files=(uploads as File[]).map(f=>({name:f.name,size:f.size,bytes:async()=>Buffer.from(await f.arrayBuffer())}));
+        append=append || form.get("append")==="true";
+      }
       if(files.reduce((n,f)=>n+f.size,0)>limit) fail(413,"Превышен размер загрузки.");
       const processed: {name:string;bytes:Buffer;texts:string[];pdf:boolean;id:string}[]=[];
+      let total=0;
+      try {
       for(const file of files) {
-        const bytes=Buffer.from(await file.arrayBuffer());
+        const bytes=await file.bytes();
+        total+=bytes.length;
+        if(total>limit) fail(413,"Превышен размер загрузки.");
         if(/\.pdf$/i.test(file.name) && !bytes.subarray(0,1024).includes(Buffer.from("%PDF-"))) fail(400,"Не удалось распознать PDF.");
         let texts:string[]=[];
         try { texts=await extractDocument(bytes,file.name); }
         catch(error) {
-          if(!/\.pdf$/i.test(file.name)) fail(400,(error as Error).message);
+          // Our own limits (page count, text size) must reach the teacher; a broken PDF falls back to manual text.
+          if(!/\.pdf$/i.test(file.name) || /Загрузите PDF|Слишком большой текст/.test((error as Error).message)) fail(400,(error as Error).message);
+          console.error("PDF text extraction failed", file.name, error);
         }
         if(texts.join("").length>2000000) fail(413,"Разделите материал на несколько уроков.");
         processed.push({name:file.name,bytes,texts,pdf:/\.pdf$/i.test(file.name),id:id()});
       }
+      } finally {
+        if(staged.length) await import("@vercel/blob").then(store=>store.del(staged)).catch(()=>{});
+      }
       l=ownedLesson(u.id,k);
-      const append=action==="materials" || form.get("append")==="true";
       const pages=append?[...l.pages]:[];
       if(pages.reduce((n,p)=>n+p.text.length,0)+processed.reduce((n,f)=>n+f.texts.join("").length,0)>4000000) fail(413,"Разделите материал на несколько уроков.");
       const grants:string[]=[];
