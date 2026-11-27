@@ -396,9 +396,9 @@ export function QuestionEdit({
   );
 }
 const rangeText = {
-  ru: { label: "Страницы", hint: "например 1-5, 8, 10-20", apply: "Выбрать", all: "Все", none: "Снять все", bad: "Не понял диапазон. Пример: 1-5, 8, 10-20", picked: "Выбрано" },
-  kk: { label: "Беттер", hint: "мысалы 1-5, 8, 10-20", apply: "Таңдау", all: "Барлығы", none: "Барлығын алу", bad: "Ауқым түсініксіз. Мысал: 1-5, 8, 10-20", picked: "Таңдалды" },
-  en: { label: "Pages", hint: "e.g. 1-5, 8, 10-20", apply: "Select", all: "All", none: "Clear", bad: "Could not read the range. Example: 1-5, 8, 10-20", picked: "Selected" },
+  ru: { title: "Выбрать страницы", from: "с", to: "по", range: "Выбрать диапазон", or: "или списком:", label: "Страницы", hint: "например 1-5, 8, 10-20", apply: "Выбрать", all: "Все", none: "Снять все", bad: "Не понял диапазон. Пример: 1-5, 8, 10-20", picked: "Выбрано" },
+  kk: { title: "Беттерді таңдау", from: "бастап", to: "дейін", range: "Ауқымды таңдау", or: "немесе тізіммен:", label: "Беттер", hint: "мысалы 1-5, 8, 10-20", apply: "Таңдау", all: "Барлығы", none: "Барлығын алу", bad: "Ауқым түсініксіз. Мысал: 1-5, 8, 10-20", picked: "Таңдалды" },
+  en: { title: "Select pages", from: "from", to: "to", range: "Select range", or: "or as a list:", label: "Pages", hint: "e.g. 1-5, 8, 10-20", apply: "Select", all: "All", none: "Clear", bad: "Could not read the range. Example: 1-5, 8, 10-20", picked: "Selected" },
 };
 // "1-5, 8, 10-20" -> set of page numbers; null when the text is not a valid range list.
 export function parseRange(text: string): Set<number> | null {
@@ -439,9 +439,55 @@ function PageRange({
   };
   const chunks: [number, number][] = [];
   if (max > 20) for (let a = 1; a <= max; a += 20) chunks.push([a, Math.min(max, a + 19)]);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const pickSpan = () => {
+    const a = Number(from || 1), b = Number(to || max);
+    if (!Number.isInteger(a) || !Number.isInteger(b) || a < 1 || b < 1) return setBad(true);
+    const span = Math.min(a, b) + "-" + Math.max(a, b);
+    setText(span);
+    apply(span);
+  };
   return (
     <div className="t-range">
+      <strong>{t.title}</strong>
+      <div className="t-range-row t-range-span">
+        <span>{t.from}</span>
+        <input
+          type="number"
+          min={1}
+          max={max}
+          inputMode="numeric"
+          aria-label={t.from}
+          placeholder="1"
+          value={from}
+          onChange={(e) => {
+            setFrom(e.target.value);
+            setBad(false);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && pickSpan()}
+        />
+        <span>{t.to}</span>
+        <input
+          type="number"
+          min={1}
+          max={max}
+          inputMode="numeric"
+          aria-label={t.to}
+          placeholder={String(max)}
+          value={to}
+          onChange={(e) => {
+            setTo(e.target.value);
+            setBad(false);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && pickSpan()}
+        />
+        <button className="t-btn t-primary" onClick={pickSpan}>
+          {t.range}
+        </button>
+      </div>
       <div className="t-range-row">
+        <span className="t-muted">{t.or}</span>
         <input
           aria-label={t.label}
           placeholder={t.hint}
