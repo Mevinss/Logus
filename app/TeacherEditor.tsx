@@ -403,7 +403,7 @@ const rangeText = {
 // "1-5, 8, 10-20" -> set of page numbers; null when the text is not a valid range list.
 export function parseRange(text: string): Set<number> | null {
   const out = new Set<number>();
-  const parts = text.split(/[,;\s]+/).filter(Boolean);
+  const parts = text.replace(/\s*[-–—]\s*/g, "-").split(/[,;\s]+/).filter(Boolean);
   if (!parts.length) return null;
   for (const part of parts) {
     const m = part.match(/^(\d+)(?:[-–—](\d+))?$/);
