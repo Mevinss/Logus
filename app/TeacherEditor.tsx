@@ -4,6 +4,7 @@ import { Temporal } from "@js-temporal/polyfill";
 import { useI18n, translate } from "./I18n";
 import { authoringLegacy, authoringMessages } from "./authoring-messages";
 import { AnyRow, Icon, Overlay, api } from "./teacher-ui";
+import { upload } from "@vercel/blob/client";
 
 export type Page = {
   id: number;
@@ -397,6 +398,7 @@ export function QuestionEdit({
 export default function Editor({
   initial,
   pdfLimitMiB,
+  directUpload,
   groups,
   leave,
   published,
@@ -404,6 +406,7 @@ export default function Editor({
 }: {
   initial: AnyRow;
   pdfLimitMiB: number;
+  directUpload?: boolean;
   groups: AnyRow[];
   leave: () => void;
   published: (run: AnyRow) => void;
@@ -556,18 +559,43 @@ export default function Editor({
                   if (
                     files.some((file) => file.size > pdfLimitMiB * 1024 * 1024)
                   ) {
-                    setError(`${pdfLimitMiB} MB · PDF / DOCX / TXT`);
+                    setError(
+                      language === "ru"
+                        ? `Файл больше ${pdfLimitMiB} МБ. Сожмите PDF или разделите его на части.`
+                        : language === "kk"
+                          ? `Файл ${pdfLimitMiB} МБ-тан үлкен. PDF-ті сығыңыз немесе бөліктерге бөліңіз.`
+                          : `File is larger than ${pdfLimitMiB} MB. Compress or split the PDF.`,
+                    );
                     setMsg("");
                     return;
                   }
                   void run(tr("authoring.legacy.019"), async () => {
                     await save();
-                    const f = new FormData();
-                    files.forEach((file) => f.append("file", file));
+                    let body: unknown;
+                    if (directUpload) {
+                      // Straight to Blob storage: Vercel functions reject request bodies over 4.5 MB.
+                      const { folder } = await api("/api/uploads/folder");
+                      const uploads = await Promise.all(
+                        files.map(async (file) => {
+                          const ext = (file.name.match(/\.(pdf|docx|txt)$/i)?.[1] || "pdf").toLowerCase();
+                          const blob = await upload(folder + "file." + ext, file, {
+                            access: "private",
+                            handleUploadUrl: "/api/uploads",
+                            multipart: file.size > 8 * 1024 * 1024,
+                          });
+                          return { pathname: blob.pathname, name: file.name };
+                        }),
+                      );
+                      body = { uploads };
+                    } else {
+                      const f = new FormData();
+                      files.forEach((file) => f.append("file", file));
+                      body = f;
+                    }
                     const l = await api(
                       "/api/lessons/" + lesson.id + "/materials",
                       "POST",
-                      f,
+                      body,
                     );
                     apply(l);
                     setMsg(

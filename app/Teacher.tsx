@@ -225,6 +225,7 @@ export default function Teacher({
             key={edit.id}
             initial={edit}
             pdfLimitMiB={data.pdfLimitMiB}
+            directUpload={data.directUpload}
             groups={groups}
             leave={() => {
               navigate("Мои уроки");
