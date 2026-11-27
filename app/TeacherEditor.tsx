@@ -572,8 +572,15 @@ export default function Editor({
                   void run(tr("authoring.legacy.019"), async () => {
                     await save();
                     let body: unknown;
+                    const viaForm = () => {
+                      const f = new FormData();
+                      files.forEach((file) => f.append("file", file));
+                      return f;
+                    };
+                    const small = files.reduce((n, f) => n + f.size, 0) < 4 * 1024 * 1024;
                     if (directUpload) {
                       // Straight to Blob storage: Vercel functions reject request bodies over 4.5 MB.
+                      try {
                       const { folder } = await api("/api/uploads/folder");
                       const uploads = await Promise.all(
                         files.map(async (file) => {
@@ -587,11 +594,12 @@ export default function Editor({
                         }),
                       );
                       body = { uploads };
-                    } else {
-                      const f = new FormData();
-                      files.forEach((file) => f.append("file", file));
-                      body = f;
-                    }
+                      } catch (e) {
+                        // Small files still fit in an ordinary request.
+                        if (!small) throw e;
+                        body = viaForm();
+                      }
+                    } else body = viaForm();
                     const l = await api(
                       "/api/lessons/" + lesson.id + "/materials",
                       "POST",
